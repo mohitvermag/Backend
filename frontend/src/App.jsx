@@ -1,6 +1,8 @@
 import { useState } from "react";
-import { Activity, Boxes, Database, FileJson, Gauge, Globe2, KeyRound, Lock, Play, RefreshCw, Route, Search, Server, ShieldCheck, TerminalSquare, Webhook, Zap } from "lucide-react";
+import { Activity, Boxes, Database, FileJson, Gauge, Globe2, KeyRound, Lock, LogOut, Play, RefreshCw, Route, Search, Server, ShieldCheck, TerminalSquare, UserRound, Webhook, X, Zap } from "lucide-react";
 import { apiScenarios, endpoints, metrics, modules, roadmap } from "./data/workspace";
+import AuthWorkspace from "./components/AuthWorkspace";
+import RoadmapTracker from "./components/RoadmapTracker";
 import "./styles.css";
 
 const methodStyles = {
@@ -73,7 +75,7 @@ const practiceViews = {
   },
 };
 
-function Header() {
+function Header({ currentUser, onLogout }) {
   return (
     <header className="sticky top-0 z-20 border-b border-slate-200 bg-white/95 backdrop-blur">
       <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-3 sm:px-6 lg:px-8">
@@ -87,10 +89,75 @@ function Header() {
         <div className="hidden items-center gap-2 md:flex">
           <button className="icon-button" aria-label="Search"><Search size={18} /></button>
           <button className="icon-button" aria-label="Refresh"><RefreshCw size={18} /></button>
-          <button className="primary-button"><Play size={17} /> Run API Flow</button>
+          <div className="user-pill"><UserRound size={16} /> {currentUser.roleLabel}</div>
+          <button className="secondary-button" onClick={onLogout}><LogOut size={17} /> Logout</button>
         </div>
       </div>
     </header>
+  );
+}
+
+function AuthModal({ authMode, onClose, onAuthenticated }) {
+  const handleAuthenticated = (user) => {
+    onAuthenticated(user);
+    onClose();
+  };
+
+  return (
+    <div className="auth-modal-backdrop" role="dialog" aria-modal="true">
+      <div className="auth-modal-panel">
+        <div className="auth-modal-header">
+          <div>
+            <p>Account access</p>
+            <h2>{authMode === "register" ? "Create your account" : "Login to continue"}</h2>
+          </div>
+          <button className="icon-button" onClick={onClose} aria-label="Close auth form"><X size={18} /></button>
+        </div>
+        <AuthWorkspace initialMode={authMode} onAuthenticated={handleAuthenticated} />
+      </div>
+    </div>
+  );
+}
+
+function PublicHome({ authMode, isAuthOpen, onOpenAuth, onCloseAuth, onAuthenticated }) {
+  return (
+    <div className="min-h-screen bg-slate-100 text-slate-900">
+      <header className="sticky top-0 z-20 border-b border-slate-200 bg-white/95 backdrop-blur">
+        <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-3 sm:px-6 lg:px-8">
+          <div className="flex items-center gap-3">
+            <div className="flex size-10 items-center justify-center rounded-lg bg-slate-950 text-white"><Server size={20} /></div>
+            <div>
+              <h1 className="text-lg font-semibold text-slate-950">Backend Practice Console</h1>
+              <p className="hidden text-sm text-slate-500 sm:block">Production-style backend learning workspace</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <button className="secondary-button" onClick={() => onOpenAuth("login")}>Login</button>
+            <button className="primary-button" onClick={() => onOpenAuth("register")}>Register</button>
+          </div>
+        </div>
+      </header>
+
+      <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8 lg:py-10">
+        <section className="public-poster">
+          <div className="poster-badge"><ShieldCheck size={16} /> Backend learning project</div>
+          <h2>Practice production backend concepts behind a real app shell.</h2>
+          <p>Login ke baad tum dashboard mein enter karoge jahan REST APIs, databases, auth, security, queues, webhooks aur monitoring modules practice kar sakte ho.</p>
+          <div className="poster-actions">
+            <button className="primary-button" onClick={() => onOpenAuth("register")}>Start Practice</button>
+            <button className="secondary-button poster-secondary" onClick={() => onOpenAuth("login")}>Login</button>
+          </div>
+          <div className="poster-grid">
+            <div><strong>40</strong><span>Backend topics</span></div>
+            <div><strong>8</strong><span>Practice sections</span></div>
+            <div><strong>2</strong><span>User roles</span></div>
+          </div>
+        </section>
+        <RoadmapTracker />
+      </main>
+
+      {isAuthOpen && <AuthModal authMode={authMode} onClose={onCloseAuth} onAuthenticated={onAuthenticated} />}
+    </div>
   );
 }
 
@@ -248,15 +315,28 @@ function RoadmapPanel() {
 
 function App() {
   const [activeView, setActiveView] = useState("rest");
+  const [authMode, setAuthMode] = useState("login");
+  const [currentUser, setCurrentUser] = useState(null);
+  const [isAuthOpen, setIsAuthOpen] = useState(false);
+
+  if (!currentUser) {
+    const openAuth = (mode) => {
+      setAuthMode(mode);
+      setIsAuthOpen(true);
+    };
+
+    return <PublicHome authMode={authMode} isAuthOpen={isAuthOpen} onOpenAuth={openAuth} onCloseAuth={() => setIsAuthOpen(false)} onAuthenticated={setCurrentUser} />;
+  }
 
   return (
     <div className="min-h-screen bg-slate-100 text-slate-900">
-      <Header />
+      <Header currentUser={currentUser} onLogout={() => setCurrentUser(null)} />
       <div className="mx-auto flex max-w-7xl">
         <Sidebar activeView={activeView} onViewChange={setActiveView} />
         <main className="min-w-0 flex-1 space-y-5 px-4 py-5 sm:px-6 lg:px-8">
           <MobileTabs activeView={activeView} onViewChange={setActiveView} />
-          <ActivePracticePanel activeView={activeView} />
+          <RoadmapTracker compact />
+          {activeView === "auth" ? <AuthWorkspace onAuthenticated={setCurrentUser} /> : <ActivePracticePanel activeView={activeView} />}
           <Metrics />
           <ModuleGrid />
           <ApiWorkbench />
