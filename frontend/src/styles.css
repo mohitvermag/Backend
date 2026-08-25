@@ -60,6 +60,11 @@ button {
   background: #1e293b;
 }
 
+.primary-button:disabled {
+  cursor: not-allowed;
+  background: #94a3b8;
+}
+
 .secondary-button {
   border-color: #cbd5e1;
   background: #ffffff;
@@ -289,6 +294,52 @@ button {
   color: #ffffff;
 }
 
+.auth-flow-list {
+  margin-top: 20px;
+  display: grid;
+  gap: 10px;
+}
+
+.auth-flow-list div {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 2px 10px;
+  border-radius: 8px;
+  border: 1px solid #e2e8f0;
+  background: #f8fafc;
+  padding: 11px;
+}
+
+.auth-flow-list svg {
+  grid-row: span 2;
+  margin-top: 2px;
+  color: #0f172a;
+}
+
+.auth-flow-list span {
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.auth-flow-list strong {
+  color: #0f172a;
+  font-size: 13px;
+  line-height: 1.35;
+}
+
+.auth-notice {
+  border-radius: 8px;
+  border: 1px solid #bae6fd;
+  background: #f0f9ff;
+  padding: 11px 12px;
+  color: #075985;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.5;
+}
+
 .role-option {
   display: flex;
   min-height: 76px;
@@ -374,6 +425,37 @@ button {
 .auth-eye:hover {
   background: #f1f5f9;
   color: #0f172a;
+}
+
+.approval-panel {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  border-radius: 8px;
+  border: 1px solid #bbf7d0;
+  background: #f0fdf4;
+  padding: 14px;
+}
+
+.approval-panel span {
+  color: #15803d;
+  font-size: 12px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.approval-panel strong {
+  display: block;
+  margin-top: 2px;
+  color: #14532d;
+  font-size: 16px;
+}
+
+.approval-panel p {
+  margin-top: 4px;
+  color: #166534;
+  font-size: 13px;
 }
 
 .roadmap-tracker {
@@ -594,5 +676,10 @@ button {
   .primary-button,
   .secondary-button {
     width: 100%;
+  }
+
+  .approval-panel {
+    align-items: stretch;
+    flex-direction: column;
   }
 }

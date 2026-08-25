@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { AtSign, BadgeCheck, Eye, EyeOff, KeyRound, Mail, Phone, Shield, UserRound } from "lucide-react";
+import { AtSign, BadgeCheck, CheckCircle2, Clock3, Eye, EyeOff, KeyRound, Mail, Phone, Send, Shield, UserRound } from "lucide-react";
 
 const modes = [
   { id: "login", label: "Login" },
@@ -7,8 +7,8 @@ const modes = [
 ];
 
 const roles = [
-  { id: "user", label: "User", description: "Customer or normal account access" },
-  { id: "admin", label: "Admin", description: "Dashboard and protected admin APIs" },
+  { id: "user", label: "User", description: "Direct registration with user role" },
+  { id: "admin", label: "Admin", description: "Approval request before admin role" },
 ];
 
 function Field({ icon: Icon, label, ...props }) {
@@ -62,6 +62,8 @@ export default function AuthWorkspace({ initialMode = "login", onAuthenticated }
   const [mode, setMode] = useState(initialMode);
   const [role, setRole] = useState("user");
   const [otpSent, setOtpSent] = useState(false);
+  const [adminApprovalRequested, setAdminApprovalRequested] = useState(false);
+  const [notice, setNotice] = useState("");
   const [form, setForm] = useState({
     username: "",
     email: "",
@@ -76,6 +78,8 @@ export default function AuthWorkspace({ initialMode = "login", onAuthenticated }
   useEffect(() => {
     setMode(initialMode);
     setOtpSent(false);
+    setAdminApprovalRequested(false);
+    setNotice("");
   }, [initialMode]);
 
   const selectedRoleLabel = useMemo(() => roles.find((item) => item.id === role)?.label || "User", [role]);
@@ -84,32 +88,54 @@ export default function AuthWorkspace({ initialMode = "login", onAuthenticated }
     setForm((current) => ({ ...current, [field]: event.target.value }));
   };
 
-  const finishAuth = () => {
+  const finishAuth = (overrides = {}) => {
     onAuthenticated?.({
-      role,
-      roleLabel: selectedRoleLabel,
+      role: overrides.role || role,
+      roleLabel: overrides.roleLabel || selectedRoleLabel,
       name: form.username || form.identifier || form.email || selectedRoleLabel,
       email: form.email,
       mobile: form.mobile,
+      authType: overrides.authType || "jwt",
     });
   };
 
   const handleSubmit = (event) => {
     event.preventDefault();
 
-    if (mode === "reset" && !otpSent) {
-      setOtpSent(true);
+    if (mode === "register" && role === "admin") {
+      setAdminApprovalRequested(true);
+      setNotice("Admin registration request submitted. Account will be activated after approval.");
       return;
     }
 
-    if (mode === "login" || mode === "register" || (mode === "reset" && otpSent)) {
-      finishAuth();
+    if (mode === "register" && role === "user") {
+      finishAuth({ role: "user", roleLabel: "User" });
+      return;
+    }
+
+    if (mode === "reset" && !otpSent) {
+      setOtpSent(true);
+      setNotice("OTP sent. Enter OTP and set a new password.");
+      return;
+    }
+
+    if (mode === "login") {
+      finishAuth({ role: "user", roleLabel: "JWT Authenticated" });
+      return;
+    }
+
+    if (mode === "reset" && otpSent) {
+      setOtpSent(false);
+      setMode("login");
+      setNotice("Password reset complete. Login with email/username and new password.");
     }
   };
 
   const switchMode = (nextMode) => {
     setMode(nextMode);
     setOtpSent(false);
+    setAdminApprovalRequested(false);
+    setNotice("");
   };
 
   return (
@@ -121,12 +147,29 @@ export default function AuthWorkspace({ initialMode = "login", onAuthenticated }
           </div>
           <h2 className="mt-3 text-2xl font-semibold text-slate-950">Role based authentication UI</h2>
           <p className="mt-2 text-sm leading-6 text-slate-600">
-            Is form ko tum baad mein register, login, OTP send, OTP verify aur password update APIs ke saath connect kar sakte ho.
+            User direct register hoga, admin request approval ke baad create hoga, login JWT flow rahega, aur forgot password OTP se reset hoga.
           </p>
-          <div className="mt-5 space-y-3 rounded-lg border border-slate-200 bg-slate-50 p-4">
-            <div className="flex items-center justify-between gap-3 text-sm"><span className="text-slate-500">Selected role</span><strong className="text-slate-950">{selectedRoleLabel}</strong></div>
-            <div className="flex items-center justify-between gap-3 text-sm"><span className="text-slate-500">Login identifier</span><strong className="text-slate-950">Email or username</strong></div>
-            <div className="flex items-center justify-between gap-3 text-sm"><span className="text-slate-500">Reset channel</span><strong className="text-slate-950">Email or mobile OTP</strong></div>
+          <div className="auth-flow-list">
+            <div>
+              <CheckCircle2 size={16} />
+              <span>User register</span>
+              <strong>Direct, role = user</strong>
+            </div>
+            <div>
+              <Clock3 size={16} />
+              <span>Admin register</span>
+              <strong>Approval email then role = admin</strong>
+            </div>
+            <div>
+              <KeyRound size={16} />
+              <span>Login</span>
+              <strong>Email / Username + Password</strong>
+            </div>
+            <div>
+              <Send size={16} />
+              <span>Forgot password</span>
+              <strong>Email / Mobile OTP reset</strong>
+            </div>
           </div>
         </div>
 
@@ -138,23 +181,36 @@ export default function AuthWorkspace({ initialMode = "login", onAuthenticated }
           </div>
 
           <form className="mt-5 space-y-5" onSubmit={handleSubmit}>
-            <RoleSelector role={role} onRoleChange={setRole} />
+            {mode === "register" && <RoleSelector role={role} onRoleChange={setRole} />}
+
+            {notice && <div className="auth-notice">{notice}</div>}
 
             {mode === "register" && (
-              <div className="grid gap-4 md:grid-cols-2">
-                <Field icon={UserRound} label="Username" value={form.username} onChange={updateField("username")} placeholder="mohit_admin" />
-                <Field icon={Mail} label="Email" type="email" value={form.email} onChange={updateField("email")} placeholder="mohit@example.com" />
-                <Field icon={Phone} label="Mobile number" type="tel" value={form.mobile} onChange={updateField("mobile")} placeholder="9876543210" />
-                <PasswordField label="Password" value={form.password} onChange={updateField("password")} />
-                <div className="md:col-span-2">
-                  <PasswordField label="Confirm password" value={form.confirmPassword} onChange={updateField("confirmPassword")} placeholder="Confirm password" />
+              <>
+                <div className="grid gap-4 md:grid-cols-2">
+                  <Field icon={UserRound} label="Username" value={form.username} onChange={updateField("username")} placeholder={role === "admin" ? "admin_username" : "username"} />
+                  <Field icon={Mail} label="Email" type="email" value={form.email} onChange={updateField("email")} placeholder="name@example.com" />
+                  <Field icon={Phone} label="Mobile number" type="tel" value={form.mobile} onChange={updateField("mobile")} placeholder="9876543210" />
+                  <PasswordField label="Password" value={form.password} onChange={updateField("password")} />
+                  <div className="md:col-span-2">
+                    <PasswordField label="Confirm password" value={form.confirmPassword} onChange={updateField("confirmPassword")} placeholder="Confirm password" />
+                  </div>
                 </div>
-              </div>
+                {adminApprovalRequested && (
+                  <div className="approval-panel">
+                    <div>
+                      <span>Request pending</span>
+                      <strong>Admin approval required</strong>
+                      <p>Your admin account will be activated after approval.</p>
+                    </div>
+                  </div>
+                )}
+              </>
             )}
 
             {mode === "login" && (
               <div className="grid gap-4">
-                <Field icon={AtSign} label="Email or mobile number" value={form.identifier} onChange={updateField("identifier")} placeholder="email@example.com or 9876543210" />
+                <Field icon={AtSign} label="Email or username" value={form.identifier} onChange={updateField("identifier")} placeholder="email@example.com or username" />
                 <PasswordField label="Password" value={form.password} onChange={updateField("password")} />
               </div>
             )}
@@ -173,13 +229,13 @@ export default function AuthWorkspace({ initialMode = "login", onAuthenticated }
             )}
 
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <button type="submit" className="primary-button w-full sm:w-auto">
-                {mode === "login" && `Login as ${selectedRoleLabel}`}
-                {mode === "register" && `Create ${selectedRoleLabel} Account`}
+              <button type="submit" className="primary-button w-full sm:w-auto" disabled={adminApprovalRequested}>
+                {mode === "login" && "Login with JWT"}
+                {mode === "register" && (role === "admin" ? "Request Admin Approval" : "Create User Account")}
                 {mode === "reset" && (otpSent ? "Update Password" : "Get OTP")}
               </button>
               {mode === "login" && (
-                <button type="button" className="secondary-button w-full sm:w-auto" onClick={() => switchMode("reset")}>Reset password</button>
+                <button type="button" className="secondary-button w-full sm:w-auto" onClick={() => switchMode("reset")}>Forgot password</button>
               )}
               {mode === "reset" && otpSent && (
                 <button type="button" className="secondary-button w-full sm:w-auto" onClick={() => setOtpSent(false)}>Change email/mobile</button>
