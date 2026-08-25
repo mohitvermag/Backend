@@ -1,17 +1,26 @@
 import { useState } from "react";
-import { Activity, Boxes, Database, FileJson, Gauge, Globe2, KeyRound, Lock, LogOut, Play, RefreshCw, Route, Search, Server, ShieldCheck, TerminalSquare, UserRound, Webhook, X, Zap } from "lucide-react";
-import { apiScenarios, endpoints, metrics, modules, roadmap } from "./data/workspace";
+import {
+  Activity,
+  Boxes,
+  Database,
+  FileJson,
+  Gauge,
+  Globe2,
+  KeyRound,
+  LogOut,
+  Play,
+  Route,
+  Search,
+  Server,
+  ShieldCheck,
+  UserRound,
+  Webhook,
+  X,
+} from "lucide-react";
 import AuthWorkspace from "./components/AuthWorkspace";
 import RoadmapTracker from "./components/RoadmapTracker";
+import { endpoints, metrics, modules, roadmap } from "./data/workspace";
 import "./styles.css";
-
-const methodStyles = {
-  GET: "bg-sky-100 text-sky-800 border-sky-200",
-  POST: "bg-emerald-100 text-emerald-800 border-emerald-200",
-  PUT: "bg-amber-100 text-amber-800 border-amber-200",
-  PATCH: "bg-violet-100 text-violet-800 border-violet-200",
-  DELETE: "bg-rose-100 text-rose-800 border-rose-200",
-};
 
 const navigation = [
   { id: "internet", label: "Internet", icon: Globe2 },
@@ -25,138 +34,129 @@ const navigation = [
 ];
 
 const practiceViews = {
-  internet: {
-    title: "Internet Request Lifecycle",
-    subtitle: "Browser se request nikalne se lekar server response tak ka complete flow practice karo.",
-    tasks: ["DNS lookup simulator", "Client/server request trace", "HTTP vs HTTPS headers", "Proxy and reverse proxy notes", "CDN cache status lab"],
-    endpoints: ["GET /api/health", "GET /api/debug/request", "GET /api/debug/headers"],
-  },
-  rest: {
-    title: "REST API Workbench",
-    subtitle: "Production-style CRUD, filters, pagination, sorting, response format aur errors implement karo.",
-    tasks: ["Standard API response", "Global error handler", "Product CRUD", "Pagination + filtering", "Bulk update/delete"],
-    endpoints: ["GET /api/v1/products", "POST /api/v1/products", "PATCH /api/v1/products/:id", "DELETE /api/v1/products/:id"],
-  },
-  databases: {
-    title: "Database Lab",
-    subtitle: "MongoDB, Mongoose, PostgreSQL aur Prisma ke schemas, relations aur query performance test karo.",
-    tasks: ["Mongoose schemas", "Populate vs aggregation", "Indexes and explain", "SQL joins", "Prisma migrations"],
-    endpoints: ["GET /api/v1/db/status", "GET /api/v1/products/search", "GET /api/v1/orders/summary"],
-  },
-  auth: {
-    title: "Authentication Studio",
-    subtitle: "Register/login se refresh-token rotation aur password reset tak full auth system banao.",
-    tasks: ["Register validation", "bcrypt password hashing", "Access token", "Refresh token cookie", "Forgot password flow"],
-    endpoints: ["POST /api/v1/auth/register", "POST /api/v1/auth/login", "POST /api/v1/auth/logout", "POST /api/v1/auth/refresh-token"],
-  },
-  security: {
-    title: "Security Checklist",
-    subtitle: "CORS, cookies, input validation, rate limiting, injection protection aur secure headers verify karo.",
-    tasks: ["Helmet headers", "CORS policy", "Zod validation", "Rate limiter", "NoSQL injection prevention"],
-    endpoints: ["POST /api/v1/security/validate", "GET /api/v1/security/headers", "GET /api/v1/admin/audit-logs"],
-  },
-  webhooks: {
-    title: "Webhook Center",
-    subtitle: "Payment/email provider events ko signature verification, retry aur idempotency ke saath handle karo.",
-    tasks: ["Signature verification", "Duplicate event handling", "Webhook logs", "Replay attack check", "Retry failed events"],
-    endpoints: ["POST /api/v1/payments/webhook", "GET /api/v1/webhooks/logs", "POST /api/v1/webhooks/replay/:id"],
-  },
-  queues: {
-    title: "Background Jobs",
-    subtitle: "Redis + BullMQ style jobs, retries, workers, delays aur failed job monitoring practice karo.",
-    tasks: ["Email worker", "Payment reconciliation", "Retry with backoff", "Dead-letter queue", "Job progress tracking"],
-    endpoints: ["POST /api/v1/jobs/email", "GET /api/v1/admin/jobs", "POST /api/v1/admin/jobs/:id/retry"],
-  },
-  monitoring: {
-    title: "Observability Console",
-    subtitle: "Logs, metrics, health checks, latency, error rate aur request tracing ka foundation banao.",
-    tasks: ["Health/readiness route", "Structured logs", "Request ID", "Latency metrics", "Error dashboard"],
-    endpoints: ["GET /api/health", "GET /api/ready", "GET /api/v1/admin/metrics", "GET /api/v1/admin/logs"],
-  },
+  internet: ["Internet Request Lifecycle", "DNS, HTTP headers, request/response and proxy basics practice karo."],
+  rest: ["REST API Workbench", "CRUD, status codes, response format, pagination, filters and versioning build karo."],
+  databases: ["Database Lab", "MongoDB schemas, indexes, aggregation, populate and transactions practice karo."],
+  auth: ["Authentication Studio", "Register, login, logout, refresh token and OTP password reset implement karo."],
+  security: ["Security Checklist", "Validation, CORS, cookies, rate limit, injection protection and secure headers add karo."],
+  webhooks: ["Webhook Center", "Signature verification, idempotency, duplicate events and retries handle karo."],
+  queues: ["Background Jobs", "Email jobs, retries, backoff, failed jobs and Redis queues practice karo."],
+  monitoring: ["Observability Console", "Health checks, logs, request IDs, latency and error tracking add karo."],
 };
 
 function Header({ currentUser, onLogout }) {
   return (
     <header className="sticky top-0 z-20 border-b border-slate-200 bg-white/95 backdrop-blur">
-      <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-3 sm:px-6 lg:px-8">
-        <div className="flex items-center gap-3">
-          <div className="flex size-10 items-center justify-center rounded-lg bg-slate-950 text-white"><Server size={20} /></div>
-          <div>
-            <h1 className="text-lg font-semibold text-slate-950">Backend Practice Console</h1>
-            <p className="text-sm text-slate-500">React UI for Express, MongoDB, auth, payments, queues and production APIs</p>
+      <div className="mx-auto flex max-w-7xl items-center justify-between gap-3 px-4 py-3 sm:px-6 lg:px-8">
+        <div className="flex min-w-0 items-center gap-3">
+          <div className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-slate-950 text-white">
+            <Server size={20} />
+          </div>
+          <div className="min-w-0">
+            <h1 className="truncate text-lg font-semibold text-slate-950">Backend Practice Console</h1>
+            <p className="hidden text-sm text-slate-500 sm:block">Express, MongoDB, auth and production API practice</p>
           </div>
         </div>
-        <div className="hidden items-center gap-2 md:flex">
-          <button className="icon-button" aria-label="Search"><Search size={18} /></button>
-          <button className="icon-button" aria-label="Refresh"><RefreshCw size={18} /></button>
-          <div className="user-pill"><UserRound size={16} /> {currentUser.roleLabel}</div>
-          <button className="secondary-button" onClick={onLogout}><LogOut size={17} /> Logout</button>
+
+        {currentUser ? (
+          <div className="flex items-center gap-2">
+            <div className="user-pill">
+              <UserRound size={16} />
+              {currentUser.roleLabel}
+            </div>
+            <button className="secondary-button" onClick={onLogout}>
+              <LogOut size={17} />
+              Logout
+            </button>
+          </div>
+        ) : null}
+      </div>
+    </header>
+  );
+}
+
+function PublicHeader({ onOpenAuth }) {
+  return (
+    <header className="sticky top-0 z-20 border-b border-slate-200 bg-white/95 backdrop-blur">
+      <div className="mx-auto flex max-w-7xl items-center justify-between gap-3 px-4 py-3 sm:px-6 lg:px-8">
+        <div className="flex min-w-0 items-center gap-3">
+          <div className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-slate-950 text-white">
+            <Server size={20} />
+          </div>
+          <div className="min-w-0">
+            <h1 className="truncate text-lg font-semibold text-slate-950">Backend Practice Console</h1>
+            <p className="hidden text-sm text-slate-500 sm:block">Production-style backend learning workspace</p>
+          </div>
+        </div>
+        <div className="flex shrink-0 items-center gap-2">
+          <button className="secondary-button" onClick={() => onOpenAuth("login")}>Login</button>
+          <button className="primary-button" onClick={() => onOpenAuth("register")}>Register</button>
         </div>
       </div>
     </header>
   );
 }
 
-function AuthModal({ authMode, onClose, onAuthenticated }) {
-  const handleAuthenticated = (user) => {
-    onAuthenticated(user);
-    onClose();
-  };
-
+function AuthModal({ mode, onClose, onAuthenticated }) {
   return (
     <div className="auth-modal-backdrop" role="dialog" aria-modal="true">
       <div className="auth-modal-panel">
         <div className="auth-modal-header">
           <div>
             <p>Account access</p>
-            <h2>{authMode === "register" ? "Create your account" : "Login to continue"}</h2>
+            <h2>{mode === "register" ? "Create your account" : "Login to continue"}</h2>
           </div>
-          <button className="icon-button" onClick={onClose} aria-label="Close auth form"><X size={18} /></button>
+          <button className="icon-button" onClick={onClose} aria-label="Close auth form">
+            <X size={18} />
+          </button>
         </div>
-        <AuthWorkspace initialMode={authMode} onAuthenticated={handleAuthenticated} />
+        <AuthWorkspace initialMode={mode} onAuthenticated={onAuthenticated} />
       </div>
     </div>
   );
 }
 
-function PublicHome({ authMode, isAuthOpen, onOpenAuth, onCloseAuth, onAuthenticated }) {
+function PublicHome({ onAuthenticated }) {
+  const [authMode, setAuthMode] = useState("login");
+  const [isAuthOpen, setIsAuthOpen] = useState(false);
+
+  const openAuth = (mode) => {
+    setAuthMode(mode);
+    setIsAuthOpen(true);
+  };
+
+  const handleAuthenticated = (user) => {
+    onAuthenticated(user);
+    setIsAuthOpen(false);
+  };
+
   return (
     <div className="min-h-screen bg-slate-100 text-slate-900">
-      <header className="sticky top-0 z-20 border-b border-slate-200 bg-white/95 backdrop-blur">
-        <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-3 sm:px-6 lg:px-8">
-          <div className="flex items-center gap-3">
-            <div className="flex size-10 items-center justify-center rounded-lg bg-slate-950 text-white"><Server size={20} /></div>
-            <div>
-              <h1 className="text-lg font-semibold text-slate-950">Backend Practice Console</h1>
-              <p className="hidden text-sm text-slate-500 sm:block">Production-style backend learning workspace</p>
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
-            <button className="secondary-button" onClick={() => onOpenAuth("login")}>Login</button>
-            <button className="primary-button" onClick={() => onOpenAuth("register")}>Register</button>
-          </div>
-        </div>
-      </header>
-
+      <PublicHeader onOpenAuth={openAuth} />
       <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8 lg:py-10">
         <section className="public-poster">
-          <div className="poster-badge"><ShieldCheck size={16} /> Backend learning project</div>
+          <div className="poster-badge">
+            <ShieldCheck size={16} />
+            Backend learning project
+          </div>
           <h2>Practice production backend concepts behind a real app shell.</h2>
-          <p>Login ke baad tum dashboard mein enter karoge jahan REST APIs, databases, auth, security, queues, webhooks aur monitoring modules practice kar sakte ho.</p>
+          <p>
+            Login ke baad tum dashboard mein REST APIs, databases, auth, security, queues,
+            webhooks aur monitoring modules practice kar sakte ho.
+          </p>
           <div className="poster-actions">
-            <button className="primary-button" onClick={() => onOpenAuth("register")}>Start Practice</button>
-            <button className="secondary-button poster-secondary" onClick={() => onOpenAuth("login")}>Login</button>
+            <button className="primary-button" onClick={() => openAuth("register")}>Start Practice</button>
+            <button className="secondary-button poster-secondary" onClick={() => openAuth("login")}>Login</button>
           </div>
           <div className="poster-grid">
-            <div><strong>40</strong><span>Backend topics</span></div>
+            <div><strong>40+</strong><span>Backend topics</span></div>
             <div><strong>8</strong><span>Practice sections</span></div>
-            <div><strong>2</strong><span>User roles</span></div>
+            <div><strong>Real</strong><span>Project workflow</span></div>
           </div>
         </section>
         <RoadmapTracker />
       </main>
-
-      {isAuthOpen && <AuthModal authMode={authMode} onClose={onCloseAuth} onAuthenticated={onAuthenticated} />}
+      {isAuthOpen && <AuthModal mode={authMode} onClose={() => setIsAuthOpen(false)} onAuthenticated={handleAuthenticated} />}
     </div>
   );
 }
@@ -173,7 +173,10 @@ function Sidebar({ activeView, onViewChange }) {
         ))}
       </nav>
       <div className="mt-8 rounded-lg border border-slate-200 bg-slate-50 p-4">
-        <div className="flex items-center gap-2 text-sm font-semibold text-slate-900"><TerminalSquare size={17} /> Backend URL</div>
+        <div className="flex items-center gap-2 text-sm font-semibold text-slate-900">
+          <Server size={17} />
+          Backend URL
+        </div>
         <p className="mt-2 break-all text-sm text-slate-600">http://localhost:8000/api</p>
       </div>
     </aside>
@@ -184,45 +187,33 @@ function MobileTabs({ activeView, onViewChange }) {
   return (
     <div className="flex gap-2 overflow-x-auto pb-1 lg:hidden">
       {navigation.map(({ id, label }) => (
-        <button key={id} type="button" onClick={() => onViewChange(id)} className={`tab-button ${activeView === id ? "tab-button-active" : ""}`}>{label}</button>
+        <button key={id} type="button" onClick={() => onViewChange(id)} className={`tab-button ${activeView === id ? "tab-button-active" : ""}`}>
+          {label}
+        </button>
       ))}
     </div>
   );
 }
 
-function ActivePracticePanel({ activeView }) {
-  const view = practiceViews[activeView];
+function ActivePracticePanel({ activeView, onAuthenticated }) {
+  if (activeView === "auth") {
+    return <AuthWorkspace onAuthenticated={onAuthenticated} />;
+  }
+
+  const [title, subtitle] = practiceViews[activeView];
 
   return (
     <section className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
       <div className="flex flex-col justify-between gap-3 md:flex-row md:items-start">
         <div>
           <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Selected workspace</p>
-          <h2 className="mt-1 text-xl font-semibold text-slate-950">{view.title}</h2>
-          <p className="mt-1 max-w-3xl text-sm text-slate-600">{view.subtitle}</p>
+          <h2 className="mt-1 text-xl font-semibold text-slate-950">{title}</h2>
+          <p className="mt-1 max-w-3xl text-sm text-slate-600">{subtitle}</p>
         </div>
-        <button className="primary-button w-full md:w-auto"><Play size={17} /> Start Lab</button>
-      </div>
-      <div className="mt-5 grid gap-4 lg:grid-cols-2">
-        <div>
-          <h3 className="text-sm font-semibold text-slate-900">Practice tasks</h3>
-          <div className="mt-3 grid gap-2">
-            {view.tasks.map((task, index) => (
-              <div key={task} className="flex items-center gap-3 rounded-lg border border-slate-200 px-3 py-2">
-                <span className="flex size-7 shrink-0 items-center justify-center rounded-md bg-slate-950 text-xs font-semibold text-white">{index + 1}</span>
-                <span className="text-sm font-medium text-slate-700">{task}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-        <div>
-          <h3 className="text-sm font-semibold text-slate-900">Endpoints to build</h3>
-          <div className="mt-3 space-y-2">
-            {view.endpoints.map((path) => (
-              <div key={path} className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 font-mono text-sm text-slate-800">{path}</div>
-            ))}
-          </div>
-        </div>
+        <button className="primary-button w-full md:w-auto">
+          <Play size={17} />
+          Start Lab
+        </button>
       </div>
     </section>
   );
@@ -240,49 +231,15 @@ function ModuleGrid() {
             </div>
             <span className="rounded-md border border-slate-200 px-2 py-1 text-xs font-medium text-slate-600">{item.status}</span>
           </div>
-          <div className="mt-4 h-2 rounded-full bg-slate-100"><div className={`h-2 rounded-full ${item.tone}`} style={{ width: `${item.progress}%` }} /></div>
-          <div className="mt-3 flex items-center justify-between text-sm text-slate-600"><span>{item.progress}% practice</span><span>{item.endpoints} endpoints</span></div>
+          <div className="mt-4 h-2 rounded-full bg-slate-100">
+            <div className={`h-2 rounded-full ${item.tone}`} style={{ width: `${item.progress}%` }} />
+          </div>
+          <div className="mt-3 flex items-center justify-between text-sm text-slate-600">
+            <span>{item.progress}% practice</span>
+            <span>{item.endpoints} endpoints</span>
+          </div>
         </article>
       ))}
-    </section>
-  );
-}
-
-function ApiWorkbench() {
-  return (
-    <section className="grid gap-4 xl:grid-cols-[1.15fr_0.85fr]">
-      <div className="rounded-lg border border-slate-200 bg-white shadow-sm">
-        <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3">
-          <div className="flex items-center gap-2 font-semibold text-slate-950"><FileJson size={18} /> Endpoint Catalog</div>
-          <button className="secondary-button"><Zap size={16} /> Generate CRUD</button>
-        </div>
-        <div className="overflow-x-auto">
-          <table className="min-w-full text-left text-sm">
-            <thead className="bg-slate-50 text-xs uppercase text-slate-500">
-              <tr><th className="px-4 py-3">Method</th><th className="px-4 py-3">Route</th><th className="px-4 py-3">Area</th><th className="px-4 py-3">Auth</th><th className="px-4 py-3">State</th></tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {endpoints.map((endpoint) => (
-                <tr key={endpoint.path} className="hover:bg-slate-50">
-                  <td className="px-4 py-3"><span className={`rounded border px-2 py-1 text-xs font-bold ${methodStyles[endpoint.method]}`}>{endpoint.method}</span></td>
-                  <td className="whitespace-nowrap px-4 py-3 font-mono text-slate-800">{endpoint.path}</td>
-                  <td className="px-4 py-3 text-slate-600">{endpoint.area}</td>
-                  <td className="px-4 py-3 text-slate-600">{endpoint.auth}</td>
-                  <td className="px-4 py-3"><span className="rounded-md bg-slate-100 px-2 py-1 text-xs font-medium text-slate-700">{endpoint.status}</span></td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
-      <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
-        <div className="flex items-center gap-2 font-semibold text-slate-950"><Lock size={18} /> API Scenario Runner</div>
-        <div className="mt-4 space-y-2">
-          {apiScenarios.map((scenario) => (
-            <button key={scenario} className="scenario-row"><span>{scenario}</span><Play size={15} /></button>
-          ))}
-        </div>
-      </div>
     </section>
   );
 }
@@ -293,9 +250,49 @@ function Metrics() {
       {metrics.map((metric) => (
         <article key={metric.label} className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
           <p className="text-sm text-slate-500">{metric.label}</p>
-          <div className="mt-2 flex items-end justify-between gap-2"><strong className="text-2xl font-semibold text-slate-950">{metric.value}</strong><span className="rounded-md bg-emerald-50 px-2 py-1 text-xs font-semibold text-emerald-700">{metric.delta}</span></div>
+          <div className="mt-2 flex items-end justify-between gap-2">
+            <strong className="text-2xl font-semibold text-slate-950">{metric.value}</strong>
+            <span className="rounded-md bg-emerald-50 px-2 py-1 text-xs font-semibold text-emerald-700">{metric.delta}</span>
+          </div>
         </article>
       ))}
+    </section>
+  );
+}
+
+function EndpointCatalog() {
+  return (
+    <section className="rounded-lg border border-slate-200 bg-white shadow-sm">
+      <div className="flex items-center gap-2 border-b border-slate-200 px-4 py-3 font-semibold text-slate-950">
+        <FileJson size={18} />
+        Endpoint Catalog
+      </div>
+      <div className="overflow-x-auto">
+        <table className="min-w-full text-left text-sm">
+          <thead className="bg-slate-50 text-xs uppercase text-slate-500">
+            <tr>
+              <th className="px-4 py-3">Method</th>
+              <th className="px-4 py-3">Route</th>
+              <th className="px-4 py-3">Area</th>
+              <th className="px-4 py-3">Auth</th>
+              <th className="px-4 py-3">State</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-100">
+            {endpoints.map((endpoint) => (
+              <tr key={endpoint.path} className="hover:bg-slate-50">
+                <td className="px-4 py-3 font-semibold text-slate-700">{endpoint.method}</td>
+                <td className="whitespace-nowrap px-4 py-3 font-mono text-slate-800">{endpoint.path}</td>
+                <td className="px-4 py-3 text-slate-600">{endpoint.area}</td>
+                <td className="px-4 py-3 text-slate-600">{endpoint.auth}</td>
+                <td className="px-4 py-3">
+                  <span className="rounded-md bg-slate-100 px-2 py-1 text-xs font-medium text-slate-700">{endpoint.status}</span>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </section>
   );
 }
@@ -303,43 +300,37 @@ function Metrics() {
 function RoadmapPanel() {
   return (
     <section className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
-      <div className="flex items-center justify-between gap-3"><div className="flex items-center gap-2 font-semibold text-slate-950"><Gauge size={18} /> Practice Roadmap</div><span className="text-sm text-slate-500">12 active labs</span></div>
+      <div className="flex items-center gap-2 font-semibold text-slate-950">
+        <Gauge size={18} />
+        Practice Roadmap
+      </div>
       <div className="mt-4 grid gap-2 md:grid-cols-2 xl:grid-cols-3">
         {roadmap.map((item, index) => (
-          <div key={item} className="flex items-center gap-3 rounded-lg border border-slate-200 px-3 py-2"><span className="flex size-7 shrink-0 items-center justify-center rounded-md bg-slate-950 text-xs font-semibold text-white">{index + 1}</span><span className="text-sm font-medium text-slate-700">{item}</span></div>
+          <div key={item} className="flex items-center gap-3 rounded-lg border border-slate-200 px-3 py-2">
+            <span className="flex size-7 shrink-0 items-center justify-center rounded-md bg-slate-950 text-xs font-semibold text-white">{index + 1}</span>
+            <span className="text-sm font-medium text-slate-700">{item}</span>
+          </div>
         ))}
       </div>
     </section>
   );
 }
 
-function App() {
+function Dashboard({ currentUser, onLogout }) {
   const [activeView, setActiveView] = useState("rest");
-  const [authMode, setAuthMode] = useState("login");
-  const [currentUser, setCurrentUser] = useState(null);
-  const [isAuthOpen, setIsAuthOpen] = useState(false);
-
-  if (!currentUser) {
-    const openAuth = (mode) => {
-      setAuthMode(mode);
-      setIsAuthOpen(true);
-    };
-
-    return <PublicHome authMode={authMode} isAuthOpen={isAuthOpen} onOpenAuth={openAuth} onCloseAuth={() => setIsAuthOpen(false)} onAuthenticated={setCurrentUser} />;
-  }
 
   return (
     <div className="min-h-screen bg-slate-100 text-slate-900">
-      <Header currentUser={currentUser} onLogout={() => setCurrentUser(null)} />
+      <Header currentUser={currentUser} onLogout={onLogout} />
       <div className="mx-auto flex max-w-7xl">
         <Sidebar activeView={activeView} onViewChange={setActiveView} />
         <main className="min-w-0 flex-1 space-y-5 px-4 py-5 sm:px-6 lg:px-8">
           <MobileTabs activeView={activeView} onViewChange={setActiveView} />
           <RoadmapTracker compact />
-          {activeView === "auth" ? <AuthWorkspace onAuthenticated={setCurrentUser} /> : <ActivePracticePanel activeView={activeView} />}
+          <ActivePracticePanel activeView={activeView} onAuthenticated={() => {}} />
           <Metrics />
           <ModuleGrid />
-          <ApiWorkbench />
+          <EndpointCatalog />
           <RoadmapPanel />
         </main>
       </div>
@@ -347,4 +338,12 @@ function App() {
   );
 }
 
-export default App;
+export default function App() {
+  const [currentUser, setCurrentUser] = useState(null);
+
+  if (!currentUser) {
+    return <PublicHome onAuthenticated={setCurrentUser} />;
+  }
+
+  return <Dashboard currentUser={currentUser} onLogout={() => setCurrentUser(null)} />;
+}

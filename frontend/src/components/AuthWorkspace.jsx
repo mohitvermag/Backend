@@ -4,7 +4,6 @@ import { AtSign, BadgeCheck, Eye, EyeOff, KeyRound, Mail, Phone, Shield, UserRou
 const modes = [
   { id: "login", label: "Login" },
   { id: "register", label: "Register" },
-  { id: "reset", label: "Reset Password" },
 ];
 
 const roles = [
@@ -155,7 +154,7 @@ export default function AuthWorkspace({ initialMode = "login", onAuthenticated }
 
             {mode === "login" && (
               <div className="grid gap-4">
-                <Field icon={AtSign} label="Email or username" value={form.identifier} onChange={updateField("identifier")} placeholder="email@example.com or username" />
+                <Field icon={AtSign} label="Email or mobile number" value={form.identifier} onChange={updateField("identifier")} placeholder="email@example.com or 9876543210" />
                 <PasswordField label="Password" value={form.password} onChange={updateField("password")} />
               </div>
             )}
@@ -179,6 +178,9 @@ export default function AuthWorkspace({ initialMode = "login", onAuthenticated }
                 {mode === "register" && `Create ${selectedRoleLabel} Account`}
                 {mode === "reset" && (otpSent ? "Update Password" : "Get OTP")}
               </button>
+              {mode === "login" && (
+                <button type="button" className="secondary-button w-full sm:w-auto" onClick={() => switchMode("reset")}>Reset password</button>
+              )}
               {mode === "reset" && otpSent && (
                 <button type="button" className="secondary-button w-full sm:w-auto" onClick={() => setOtpSent(false)}>Change email/mobile</button>
               )}
