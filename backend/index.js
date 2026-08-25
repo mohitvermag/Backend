@@ -1,15 +1,16 @@
 import express from "express";
 import dotenv from "dotenv";
+dotenv.config({
+  path: "./.env"
+});
 import connectDB from "./src/db/index.js";
 import cors from "cors";
 import cookieParser from "cookie-parser";
 import { urlencoded } from "express";
 
-import loginRouter from "./src/routes/login.js";
+import authRouter from "./src/routes/auth.route.js";
 
-dotenv.config({
-  path: "./.env"
-});
+
 
 connectDB()
   .then(() => {
@@ -31,7 +32,7 @@ connectDB()
     app.use(express.static("public"));
 
     // Routes
-    app.use("/", loginRouter);
+    app.use("/api/v1/auth", authRouter);
 
     app.listen(process.env.PORT, () => {
       console.log(

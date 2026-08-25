@@ -82,6 +82,8 @@ export default function AuthWorkspace({ initialMode = "login", onAuthenticated }
     setNotice("");
   }, [initialMode]);
 
+  const baseUrl = useMemo(() => "http://localhost:8000", []);
+
   const selectedRoleLabel = useMemo(() => roles.find((item) => item.id === role)?.label || "User", [role]);
 
   const updateField = (field) => (event) => {
@@ -99,12 +101,37 @@ export default function AuthWorkspace({ initialMode = "login", onAuthenticated }
     });
   };
 
-  const handleSubmit = (event) => {
+  const handleSubmit = async(event) => {
     event.preventDefault();
 
     if (mode === "register" && role === "admin") {
-      setAdminApprovalRequested(true);
-      setNotice("Admin registration request submitted. Account will be activated after approval.");
+      try{
+        const response = await fetch(`${baseUrl}/api/v1/auth/admin/request`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            username: form.username,
+            email: form.email,
+            mobile: form.mobile,
+            password: form.password,
+            confirmPassword: form.confirmPassword,
+          }),
+        });
+
+        const data = await response.json();
+
+        if (response.ok) {
+          setAdminApprovalRequested(true);
+          setNotice(data.message || "Admin registration request submitted successfully. Please wait for approval.");
+        } else {
+          setNotice(data.message || "Failed to submit admin registration request.");
+        }
+      }
+      catch (error) {
+        setNotice("An error occurred while submitting the request.");
+      }
       return;
     }
 
