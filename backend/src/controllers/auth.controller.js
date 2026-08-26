@@ -32,14 +32,15 @@ if(!username || !email || !mobile || !password || !confirmPassword){
     const passwordHash = await bcrypt.hash(password, 10);
     const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
 
-    await AdminRegistrationRequest.create({
+    const adminRequest = await AdminRegistrationRequest.create({
         username, email, mobile, passwordHash, approvalTokenHash, status:"pending", expiresAt
     })
 
     await sendAdminApprovalEmail({username, email, mobile, approvalToken:rawapprovalToken});
     return res.status(201).json({
         success:true,
-        message:"Admin registration request submitted successfully. Please wait for approval."
+        message:"Admin registration request submitted successfully. Please wait for approval.",
+        requestId : adminRequest._id
     })
 
     }
@@ -229,6 +230,29 @@ console.error(err);
  return res.status(500).send(`
             <h2>Something went wrong while rejecting the request.</h2>
         `);
+    }
+}
+
+export const getAdminRegistrationStatus = async(req, res)=>{
+    try{
+        const {requestId}=req.params;
+        const request = await AdminRegistrationRequest.findById(requestId);
+        if(!request){
+            return res.status(400).json({
+                success:false,
+                message:"Admin Registration request not found"
+            })
+        }
+        return res.status(200).json({
+            success:true,
+            message:request.status
+        });
+    }
+    catch(err){
+        return res.status(500).json({
+            success:false,
+            message:"Unable to get registration status"
+        })
     }
 }
 

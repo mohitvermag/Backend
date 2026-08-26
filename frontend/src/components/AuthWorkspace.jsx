@@ -63,6 +63,7 @@ export default function AuthWorkspace({ initialMode = "login", onAuthenticated }
   const [role, setRole] = useState("user");
   const [otpSent, setOtpSent] = useState(false);
   const [adminApprovalRequested, setAdminApprovalRequested] = useState(false);
+  const [adminApproveRequestId, setAdminApproveRequestId]=useState(null);
   const [notice, setNotice] = useState("");
   const [form, setForm] = useState({
     username: "",
@@ -74,6 +75,7 @@ export default function AuthWorkspace({ initialMode = "login", onAuthenticated }
     otp: "",
     newPassword: "",
   });
+
 
   useEffect(() => {
     setMode(initialMode);
@@ -123,6 +125,7 @@ export default function AuthWorkspace({ initialMode = "login", onAuthenticated }
         const data = await response.json();
 
         if (response.ok) {
+          setAdminApproveRequestId(data.requestId);
           setAdminApprovalRequested(true);
           setNotice(data.message || "Admin registration request submitted successfully. Please wait for approval.");
         } else {
@@ -157,6 +160,7 @@ export default function AuthWorkspace({ initialMode = "login", onAuthenticated }
       setNotice("Password reset complete. Login with email/username and new password.");
     }
   };
+  console.log(adminApproveRequestId,"idddddddd")
 
   const switchMode = (nextMode) => {
     setMode(nextMode);
