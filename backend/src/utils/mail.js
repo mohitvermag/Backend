@@ -17,7 +17,7 @@ export const sendAdminApprovalEmail = async({
     const rejectUrl = `${process.env.BACKEND_URL}/api/v1/auth/admin/reject/${approvalToken}`;
 
     await transport.sendMail({
-        from:process.env.SMTP_USER,
+        from:`MohitVerma <${process.env.SMTP_USER}>`,
         to:process.env.ADMIN_APPROVAL_EMAIL,
         subject:"Admin Registration Approval Request",
         html:`

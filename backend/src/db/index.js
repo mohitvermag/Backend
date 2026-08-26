@@ -22,11 +22,10 @@ const getMongoUri = () => {
 
 const connectDB = async ()=>{
     try{
-        const connectionInstance = await mongoose.connect(getMongoUri());
-        console.log("Database Connected Successfully", connectionInstance.connection.host);
+        await mongoose.connect(getMongoUri());
     }
     catch(error){
-        console.log(error);
+        console.error(error);
         process.exit(1);
     }
 }

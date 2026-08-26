@@ -1,5 +1,6 @@
-import { useEffect, useMemo, useState } from "react";
-import { AtSign, BadgeCheck, CheckCircle2, Clock3, Eye, EyeOff, KeyRound, Mail, Phone, Send, Shield, UserRound } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import {io} from "socket.io-client";
+import { AtSign, BadgeCheck, CheckCircle2, Clock3, Eye, EyeOff, KeyRound, Mail, Phone, Send, Shield, UserRound, X } from "lucide-react";
 
 const modes = [
   { id: "login", label: "Login" },
@@ -65,6 +66,8 @@ export default function AuthWorkspace({ initialMode = "login", onAuthenticated }
   const [adminApprovalRequested, setAdminApprovalRequested] = useState(false);
   const [adminApproveRequestId, setAdminApproveRequestId]=useState(null);
   const [notice, setNotice] = useState("");
+  const [approvalPopup, setApprovalPopup] = useState(null);
+  const socketRef = useRef(null);
   const [form, setForm] = useState({
     username: "",
     email: "",
@@ -76,11 +79,35 @@ export default function AuthWorkspace({ initialMode = "login", onAuthenticated }
     newPassword: "",
   });
 
+  useEffect(() => {
+    const socket = io("http://localhost:8000");
+    socketRef.current = socket;
+
+    socket.on("admin-request-status", ({ status, message }) => {
+      const nextMessage = message || `Admin request ${status}.`;
+      setNotice(nextMessage);
+      setApprovalPopup({ status, message: nextMessage });
+      setAdminApprovalRequested(status === "pending");
+    });
+
+    return () => {
+      socket.disconnect();
+      socketRef.current = null;
+    };
+  }, []);
+
+  useEffect(() => {
+    if(!adminApproveRequestId || !socketRef.current) return;
+
+    socketRef.current.emit("join-admin-request", adminApproveRequestId);
+  }, [adminApproveRequestId]);
+
 
   useEffect(() => {
     setMode(initialMode);
     setOtpSent(false);
     setAdminApprovalRequested(false);
+    setApprovalPopup(null);
     setNotice("");
   }, [initialMode]);
 
@@ -160,17 +187,33 @@ export default function AuthWorkspace({ initialMode = "login", onAuthenticated }
       setNotice("Password reset complete. Login with email/username and new password.");
     }
   };
-  console.log(adminApproveRequestId,"idddddddd")
-
   const switchMode = (nextMode) => {
     setMode(nextMode);
     setOtpSent(false);
     setAdminApprovalRequested(false);
+    setApprovalPopup(null);
     setNotice("");
   };
 
   return (
     <section className="rounded-lg border border-slate-200 bg-white shadow-sm">
+      {approvalPopup && (
+        <div className="approval-popup-backdrop" role="dialog" aria-modal="true" aria-labelledby="approval-popup-title">
+          <div className={`approval-popup approval-popup-${approvalPopup.status}`}>
+            <button type="button" className="approval-popup-close" onClick={() => setApprovalPopup(null)} aria-label="Close notification">
+              <X size={18} />
+            </button>
+            <div className="approval-popup-icon">
+              <CheckCircle2 size={34} />
+            </div>
+            <span>{approvalPopup.status === "approved" ? "Approved" : "Admin Request Update"}</span>
+            <h3 id="approval-popup-title">{approvalPopup.message}</h3>
+            <button type="button" className="primary-button" onClick={() => setApprovalPopup(null)}>
+              Got it
+            </button>
+          </div>
+        </div>
+      )}
       <div className="grid lg:grid-cols-[0.9fr_1.1fr]">
         <div className="border-b border-slate-200 p-5 lg:border-b-0 lg:border-r">
           <div className="flex items-center gap-2 text-sm font-semibold uppercase tracking-wide text-slate-500">

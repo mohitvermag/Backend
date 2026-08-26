@@ -340,6 +340,80 @@ button {
   line-height: 1.5;
 }
 
+.approval-popup-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 70;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(15, 23, 42, 0.72);
+  padding: 18px;
+}
+
+.approval-popup {
+  position: relative;
+  display: grid;
+  width: min(420px, 100%);
+  justify-items: center;
+  gap: 12px;
+  border-radius: 8px;
+  border: 1px solid #bbf7d0;
+  background: #ffffff;
+  padding: 30px 24px 24px;
+  text-align: center;
+  box-shadow: 0 28px 90px rgba(15, 23, 42, 0.34);
+}
+
+.approval-popup-approved {
+  border-color: #86efac;
+  box-shadow: 0 28px 90px rgba(21, 128, 61, 0.24), 0 0 0 1px rgba(22, 163, 74, 0.12);
+}
+
+.approval-popup-close {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  display: inline-flex;
+  width: 34px;
+  height: 34px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  color: #64748b;
+}
+
+.approval-popup-close:hover {
+  background: #f1f5f9;
+  color: #0f172a;
+}
+
+.approval-popup-icon {
+  display: inline-flex;
+  width: 64px;
+  height: 64px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: #dcfce7;
+  color: #15803d;
+}
+
+.approval-popup span {
+  color: #15803d;
+  font-size: 12px;
+  font-weight: 850;
+  text-transform: uppercase;
+}
+
+.approval-popup h3 {
+  max-width: 340px;
+  color: #0f172a;
+  font-size: 19px;
+  font-weight: 850;
+  line-height: 1.35;
+}
+
 .role-option {
   display: flex;
   min-height: 76px;

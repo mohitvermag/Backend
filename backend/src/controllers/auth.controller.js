@@ -4,6 +4,17 @@ import AdminRegistrationRequest from "../models/AdminRegistrationRequest.js";
 import { approvalToken as generateApprovalToken, approvalTokenHash as  hashApprovalToken} from "../utils/crypto.js";
 import {sendAdminApprovalEmail} from "../utils/mail.js";
 
+const emitAdminRegistrationStatus = (req, request, status, message) => {
+    const io = req.app.get("io");
+    if(!io || !request?._id) return;
+
+    io.to(`admin-request-${request._id.toString()}`).emit("admin-request-status", {
+        requestId: request._id,
+        status,
+        message
+    });
+}
+
 export const requestAdminRegistration = async(req,res)=>{
     try{
 const {username, email, mobile, password, confirmPassword} = req.body;
@@ -73,6 +84,7 @@ export const approveAdminRegistration = async(req,res)=>{
         if(request.expiresAt < new Date()){
             request.status="expired";
             await request.save();
+            emitAdminRegistrationStatus(req, request, "expired", "Admin registration request has expired.");
             return res.status(400).json({
                 success:false,
                 message:"Approval token has expired"
@@ -82,12 +94,12 @@ export const approveAdminRegistration = async(req,res)=>{
         if(existingUser){
             request.status = "rejected";
             await request.save();
+            emitAdminRegistrationStatus(req, request, "rejected", "Admin registration request rejected because user already exists.");
             return res.status(400).json({
                 success:false,
                 message:"User already exists"
             })
         }
-        console.log(request);
         const user = await User.create({
             username:request.username,
             email:request.email,
@@ -98,6 +110,7 @@ export const approveAdminRegistration = async(req,res)=>{
 
         request.status = "approved";
         await request.save();
+        emitAdminRegistrationStatus(req, request, "approved", "Admin registration request approved. You can now login.");
         return res.status(200).send(`
              <!DOCTYPE html>
             <html>
@@ -174,6 +187,7 @@ export const rejectAdminRegistration = async(req,res)=>{
         if(request.expiresAt<new Date()){
             request.status = "expired";
             await request.save();
+            emitAdminRegistrationStatus(req, request, "expired", "Admin registration request has expired.");
             return res.status(410).json({
                 success:false,
                 message:"Request Expired"
@@ -181,6 +195,7 @@ export const rejectAdminRegistration = async(req,res)=>{
         }
         request.status="rejected"
         await request.save();
+        emitAdminRegistrationStatus(req, request, "rejected", "Admin registration request rejected.");
 
         return res.status(200).send(`
              <!DOCTYPE html>
