@@ -271,3 +271,57 @@ export const getAdminRegistrationStatus = async(req, res)=>{
     }
 }
 
+export const registerUser  = async(req, res)=>{
+    try{
+    const {username, email, mobile, password, confirmPassword}= req.body;
+
+    if(!username || !email || !mobile || !password || !confirmPassword){
+        return res.status(400).json({
+            success:false,
+            message:"All fields are required"
+        })
+    }
+    if(password!==confirmPassword){
+        return res.status(400).json({
+            success:false,
+            message:"Password doesn't match"
+        })
+    }
+    const existingUser = await User.findOne({
+        $or :[{username}, {email},{mobile}]
+    })
+    if(existingUser){
+        return res.status(409).json({
+            success:false,
+            message:"Already Resigtered"
+        })
+    }
+    const passwordHash = await bcrypt.hash(password,10);
+    const user = await User.create({
+        username,
+        email,
+        mobile,
+        passwordHash,
+        role:"user"
+    })
+
+    return res.status(201).json({
+        success:true,
+        message:"User Created Successfully",
+        user:{
+            id:user._id,
+            username:user.username,
+            email:user.email,
+            mobile:user.mobile,
+            role:user.role
+        }
+    })
+}
+catch(err){
+    return res.status(500).json({
+        success:false,
+        message:"Internal Server Error"
+    })
+}
+}
+

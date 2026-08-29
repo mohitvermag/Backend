@@ -165,10 +165,64 @@ export default function AuthWorkspace({ initialMode = "login", onAuthenticated }
       return;
     }
 
-    if (mode === "register" && role === "user") {
-      finishAuth({ role: "user", roleLabel: "User" });
-      return;
+  if (mode === "register" && role === "user") {
+    try {
+        const response = await fetch(
+            `${baseUrl}/api/v1/auth/user/register`,
+            {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify({
+                    username: form.username,
+                    email: form.email,
+                    mobile: form.mobile,
+                    password: form.password,
+                    confirmPassword: form.confirmPassword
+                })
+            }
+        );
+
+        const data = await response.json();
+
+        if (!response.ok) {
+            setNotice(
+                data.message || "User registration failed."
+            );
+            return;
+        }
+
+        // Registration successful
+        setNotice("");
+
+        setApprovalPopup({
+            status: "success",
+            message: "Your account has been created successfully."
+        });
+
+        setForm((current) => ({
+            ...current,
+            username: "",
+            email: "",
+            mobile: "",
+            password: "",
+            confirmPassword: ""
+        }));
+
+    } catch (error) {
+        console.error(
+            "User registration error:",
+            error
+        );
+
+        setNotice(
+            "Unable to connect to the server."
+        );
     }
+
+    return;
+}
 
     if (mode === "reset" && !otpSent) {
       setOtpSent(true);
@@ -206,11 +260,29 @@ export default function AuthWorkspace({ initialMode = "login", onAuthenticated }
             <div className="approval-popup-icon">
               <CheckCircle2 size={34} />
             </div>
-            <span>{approvalPopup.status === "approved" ? "Approved" : "Admin Request Update"}</span>
+            <span>   {approvalPopup.status === "success"
+        ? "Registration Successful"
+        : approvalPopup.status === "approved"
+        ? "Approved"
+        : "Admin Request Update"}</span>
             <h3 id="approval-popup-title">{approvalPopup.message}</h3>
-            <button type="button" className="primary-button" onClick={() => setApprovalPopup(null)}>
-              Got it
-            </button>
+            <button
+    type="button"
+    className="primary-button"
+    onClick={() => {
+        setApprovalPopup(null);
+
+        if (approvalPopup.status === "success") {
+            setMode("login");
+            setRole("user");
+            setNotice("You can now login with your credentials.");
+        }
+    }}
+>
+    {approvalPopup.status === "success"
+        ? "Continue to Login"
+        : "Got it"}
+</button>
           </div>
         </div>
       )}
