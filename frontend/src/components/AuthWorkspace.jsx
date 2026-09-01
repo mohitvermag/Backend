@@ -63,11 +63,13 @@ export default function AuthWorkspace({ initialMode = "login", onAuthenticated }
   const [mode, setMode] = useState(initialMode);
   const [role, setRole] = useState("user");
   const [otpSent, setOtpSent] = useState(false);
+  const [resetToken, setResetToken] = useState("");
   const [adminApprovalRequested, setAdminApprovalRequested] = useState(false);
   const [adminApproveRequestId, setAdminApproveRequestId]=useState(null);
   const [notice, setNotice] = useState("");
   const [approvalPopup, setApprovalPopup] = useState(null);
   const socketRef = useRef(null);
+  const [otpVerified, setOtpVerified] = useState(false);
   const [form, setForm] = useState({
     username: "",
     email: "",
@@ -225,9 +227,59 @@ export default function AuthWorkspace({ initialMode = "login", onAuthenticated }
 }
 
     if (mode === "reset" && !otpSent) {
-      setOtpSent(true);
-      setNotice("OTP sent. Enter OTP and set a new password.");
-      return;
+      try {
+        const response = await fetch(
+            `${baseUrl}/api/v1/auth/forgot-password/request`,
+            {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify({
+                    identifier: form.identifier
+                })
+            }
+        );
+
+        const data = await response.json();
+
+        if (!response.ok) {
+            setNotice(
+                data.message || "Unable to send OTP."
+            );
+            return;
+        };
+
+         setOtpVerified(false);
+    setResetToken("");
+
+    setForm((current) => ({
+        ...current,
+        otp: "",
+        newPassword: "",
+        confirmPassword: ""
+    }));
+
+        setOtpSent(true);
+
+        setNotice(
+            data.message ||
+            "If an account matches the provided information, an OTP has been sent."
+        );
+
+    } catch (error) {
+
+        console.error(
+            "Forgot password request error:",
+            error
+        );
+
+        setNotice(
+            "Unable to connect to the server."
+        );
+    }
+
+    return;
     }
 
     if (mode === "login") {
@@ -235,11 +287,127 @@ export default function AuthWorkspace({ initialMode = "login", onAuthenticated }
       return;
     }
 
-    if (mode === "reset" && otpSent) {
-      setOtpSent(false);
-      setMode("login");
-      setNotice("Password reset complete. Login with email/username and new password.");
+if (mode === "reset" && otpSent) {
+
+    // STEP 1: OTP verify karo
+    if (!resetToken) {
+        try {
+
+            const response = await fetch(
+                `${baseUrl}/api/v1/auth/forgot-password/verify`,
+                {
+                    method: "POST",
+
+                    headers: {
+                        "Content-Type": "application/json"
+                    },
+
+                    body: JSON.stringify({
+                        identifier: form.identifier,
+                        otp: form.otp
+                    })
+                }
+            );
+
+            const data = await response.json();
+
+            if (!response.ok) {
+                setNotice(
+                    data.message || "Invalid OTP."
+                );
+                return;
+            }
+
+            // OTP successfully verified
+            setResetToken(data.resetToken);
+            setOtpVerified(true)
+
+            setNotice(
+                "OTP verified successfully. Now create your new password."
+            );
+
+        } catch (error) {
+
+            console.error(
+                "OTP verification error:",
+                error
+            );
+
+            setNotice(
+                "Unable to connect to the server."
+            );
+        }
+
+        return;
     }
+
+
+    // STEP 2: OTP already verified
+    // Now reset the password
+
+    try {
+
+        const response = await fetch(
+            `${baseUrl}/api/v1/auth/forgot-password/reset`,
+            {
+                method: "POST",
+
+                headers: {
+                    "Content-Type": "application/json"
+                },
+
+                body: JSON.stringify({
+                    resetToken: resetToken,
+                    newPassword: form.newPassword,
+                    confirmPassword: form.confirmPassword
+                })
+            }
+        );
+
+        const data = await response.json();
+
+        if (!response.ok) {
+            setNotice(
+                data.message || "Unable to reset password."
+            );
+            return;
+        }
+
+        // Password successfully changed
+        setApprovalPopup({
+            status: "success",
+            message:
+                data.message ||
+                "Your password has been reset successfully."
+        });
+
+        // Clear sensitive form data
+        setForm((current) => ({
+            ...current,
+            identifier: "",
+            otp: "",
+            newPassword: "",
+            confirmPassword: ""
+        }));
+
+        setResetToken("");
+        setOtpSent(false);
+        setOtpVerified(false)
+
+    } catch (error) {
+
+        console.error(
+            "Password reset error:",
+            error
+        );
+
+        setNotice(
+            "Unable to connect to the server."
+        );
+    }
+
+    return;
+}    
   };
   const switchMode = (nextMode) => {
     setMode(nextMode);
@@ -260,11 +428,11 @@ export default function AuthWorkspace({ initialMode = "login", onAuthenticated }
             <div className="approval-popup-icon">
               <CheckCircle2 size={34} />
             </div>
-            <span>   {approvalPopup.status === "success"
-        ? "Registration Successful"
-        : approvalPopup.status === "approved"
-        ? "Approved"
-        : "Admin Request Update"}</span>
+            <span>  {approvalPopup.status === "success"
+    ? "Success"
+    : approvalPopup.status === "approved"
+    ? "Approved"
+    : "Admin Request Update"}</span>
             <h3 id="approval-popup-title">{approvalPopup.message}</h3>
             <button
     type="button"
@@ -364,13 +532,40 @@ export default function AuthWorkspace({ initialMode = "login", onAuthenticated }
             {mode === "reset" && (
               <div className="grid gap-4">
                 <Field icon={AtSign} label="Email or mobile number" value={form.identifier} onChange={updateField("identifier")} placeholder="email@example.com or 9876543210" />
-                {otpSent && (
-                  <>
-                    <Field icon={KeyRound} label="OTP" value={form.otp} onChange={updateField("otp")} placeholder="6 digit OTP" inputMode="numeric" />
-                    <PasswordField label="New password" value={form.newPassword} onChange={updateField("newPassword")} placeholder="Create new password" />
-                    <PasswordField label="Confirm new password" value={form.confirmPassword} onChange={updateField("confirmPassword")} placeholder="Confirm new password" />
-                  </>
-                )}
+              {otpSent && (
+    <>
+        {/* OTP field — OTP verification tak visible rahega */}
+        {!otpVerified && (
+            <Field
+                icon={KeyRound}
+                label="OTP"
+                value={form.otp}
+                onChange={updateField("otp")}
+                placeholder="6 digit OTP"
+                inputMode="numeric"
+            />
+        )}
+
+        {/* Password fields — OTP verify hone ke BAAD visible hongi */}
+        {otpVerified && (
+            <>
+                <PasswordField
+                    label="New password"
+                    value={form.newPassword}
+                    onChange={updateField("newPassword")}
+                    placeholder="Create new password"
+                />
+
+                <PasswordField
+                    label="Confirm new password"
+                    value={form.confirmPassword}
+                    onChange={updateField("confirmPassword")}
+                    placeholder="Confirm new password"
+                />
+            </>
+        )}
+    </>
+)}
               </div>
             )}
 
@@ -378,13 +573,29 @@ export default function AuthWorkspace({ initialMode = "login", onAuthenticated }
               <button type="submit" className="primary-button w-full sm:w-auto" disabled={adminApprovalRequested}>
                 {mode === "login" && "Login with JWT"}
                 {mode === "register" && (role === "admin" ? "Request Admin Approval" : "Create User Account")}
-                {mode === "reset" && (otpSent ? "Update Password" : "Get OTP")}
-              </button>
+{mode === "reset" && (
+    !otpSent
+        ? "Get OTP"
+        : !resetToken
+            ? "Verify OTP"
+            : "Update Password"
+)}              </button>
               {mode === "login" && (
                 <button type="button" className="secondary-button w-full sm:w-auto" onClick={() => switchMode("reset")}>Forgot password</button>
               )}
               {mode === "reset" && otpSent && (
-                <button type="button" className="secondary-button w-full sm:w-auto" onClick={() => setOtpSent(false)}>Change email/mobile</button>
+                <button type="button" className="secondary-button w-full sm:w-auto" onClick={() => {
+    setOtpSent(false);
+    setOtpVerified(false);
+    setResetToken("");
+
+    setForm((current) => ({
+        ...current,
+        otp: "",
+        newPassword: "",
+        confirmPassword: ""
+    }));
+}}>Change email/mobile</button>
               )}
             </div>
           </form>
@@ -392,4 +603,5 @@ export default function AuthWorkspace({ initialMode = "login", onAuthenticated }
       </div>
     </section>
   );
+
 }
