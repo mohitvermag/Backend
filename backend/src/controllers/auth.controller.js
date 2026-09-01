@@ -554,7 +554,7 @@ export const resetPassword = async(req,res)=>{
             _id:resetRequest._id
         });
 
-        return res.status(400).json({
+        return res.status(200).json({
             success:true,
             message:"Passwords Changes Successfully. Now You can Log In"
         })
@@ -566,5 +566,88 @@ success:false,
 message:"Unable to change password"
 })    
 }
+}
+
+export const loginUser = async(req,res)=>{
+    try{
+        const {identifier, password}=req.body;
+
+        if(!identifier || !password){
+            return res.status(400).json({
+                success:false,
+                message:"Identifier and Password are required"
+            })
+        }
+
+        const normalisedIdentifier = identifier.trim().toLowerCase();
+        const user = await User.findOne({
+            $or:[
+                {email:normalisedIdentifier},
+                {mobile:identifier.trim()}
+            ]
+        });
+
+        if(!user){
+            return res.status(400).json({
+                success:false,
+                message:"Invalid Credentials"
+            })
+        };
+
+        const isPasswordCorrect = await bcrypt.compare(password, user.passwordHash);
+        if(!isPasswordCorrect){
+            return res.status(400).json({
+                success:false,
+                message:"Invalid Credentials"
+            })
+        };
+
+        req.session.userId = user._id.toString();
+
+        return res.status(200).json({
+            success:true,
+            message:"Login Successful",
+            user:{
+                id:user._id,
+                username:user.username,
+                email:user.email,
+                mobile:user.mobile,
+                role:user.role
+            }
+        })
+    }
+    catch(err){
+        return res.status(500).json({
+            success:false,
+            message:`${err} Unable to login user`
+    })
+    }
+}
+
+export const logoutUser = async(req, res)=>{
+    try{
+        req.session.destroy((err)=>{
+            if(err){
+                console.log(err);
+                return res.status(500).json({
+                    success:false,
+                    message:"Unable to logout User"
+                })
+            }
+            res.clearCookie("connect.sid");
+            return res.status(200).json({
+                success:true,
+                message:"Logout Successful"
+            })
+        });
+
+    }
+    catch(err){
+        console.error("Logout error:", err);
+        return res.status(500).json({
+            success: false,
+            message: "Internal Server Error during logout"
+        });
+    }
 }
 

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import {io} from "socket.io-client";
+import { io } from "socket.io-client";
 import { AtSign, BadgeCheck, CheckCircle2, Clock3, Eye, EyeOff, KeyRound, Mail, Phone, Send, Shield, UserRound, X } from "lucide-react";
+import { authApi } from "../lib/api";
 
 const modes = [
   { id: "login", label: "Login" },
@@ -65,7 +66,7 @@ export default function AuthWorkspace({ initialMode = "login", onAuthenticated }
   const [otpSent, setOtpSent] = useState(false);
   const [resetToken, setResetToken] = useState("");
   const [adminApprovalRequested, setAdminApprovalRequested] = useState(false);
-  const [adminApproveRequestId, setAdminApproveRequestId]=useState(null);
+  const [adminApproveRequestId, setAdminApproveRequestId] = useState(null);
   const [notice, setNotice] = useState("");
   const [approvalPopup, setApprovalPopup] = useState(null);
   const socketRef = useRef(null);
@@ -99,7 +100,7 @@ export default function AuthWorkspace({ initialMode = "login", onAuthenticated }
   }, []);
 
   useEffect(() => {
-    if(!adminApproveRequestId || !socketRef.current) return;
+    if (!adminApproveRequestId || !socketRef.current) return;
 
     socketRef.current.emit("join-admin-request", adminApproveRequestId);
   }, [adminApproveRequestId]);
@@ -132,282 +133,140 @@ export default function AuthWorkspace({ initialMode = "login", onAuthenticated }
     });
   };
 
-  const handleSubmit = async(event) => {
+  const handleSubmit = async (event) => {
     event.preventDefault();
 
     if (mode === "register" && role === "admin") {
-      try{
-        const response = await fetch(`${baseUrl}/api/v1/auth/admin/request`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            username: form.username,
-            email: form.email,
-            mobile: form.mobile,
-            password: form.password,
-            confirmPassword: form.confirmPassword,
-          }),
+      try {
+        const data = await authApi.requestAdminRegistration({
+          username: form.username,
+          email: form.email,
+          mobile: form.mobile,
+          password: form.password,
+          confirmPassword: form.confirmPassword,
         });
 
-        const data = await response.json();
-
-        if (response.ok) {
-          setAdminApproveRequestId(data.requestId);
-          setAdminApprovalRequested(true);
-          setNotice(data.message || "Admin registration request submitted successfully. Please wait for approval.");
-        } else {
-          setNotice(data.message || "Failed to submit admin registration request.");
-        }
-      }
-      catch (error) {
-        setNotice("An error occurred while submitting the request.");
+        setAdminApproveRequestId(data.requestId);
+        setAdminApprovalRequested(true);
+        setNotice(data.message || "Admin registration request submitted successfully. Please wait for approval.");
+      } catch (error) {
+        setNotice(error.message || "An error occurred while submitting the request.");
       }
       return;
     }
 
-  if (mode === "register" && role === "user") {
-    try {
-        const response = await fetch(
-            `${baseUrl}/api/v1/auth/user/register`,
-            {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json"
-                },
-                body: JSON.stringify({
-                    username: form.username,
-                    email: form.email,
-                    mobile: form.mobile,
-                    password: form.password,
-                    confirmPassword: form.confirmPassword
-                })
-            }
-        );
-
-        const data = await response.json();
-
-        if (!response.ok) {
-            setNotice(
-                data.message || "User registration failed."
-            );
-            return;
-        }
-
-        // Registration successful
-        setNotice("");
-
-        setApprovalPopup({
-            status: "success",
-            message: "Your account has been created successfully."
+    if (mode === "register" && role === "user") {
+      try {
+        const data = await authApi.registerUser({
+          username: form.username,
+          email: form.email,
+          mobile: form.mobile,
+          password: form.password,
+          confirmPassword: form.confirmPassword,
         });
 
+        setNotice("");
+        setApprovalPopup({
+          status: "success",
+          message: data.message || "Your account has been created successfully.",
+        });
         setForm((current) => ({
-            ...current,
-            username: "",
-            email: "",
-            mobile: "",
-            password: "",
-            confirmPassword: ""
+          ...current,
+          username: "",
+          email: "",
+          mobile: "",
+          password: "",
+          confirmPassword: "",
         }));
-
-    } catch (error) {
-        console.error(
-            "User registration error:",
-            error
-        );
-
-        setNotice(
-            "Unable to connect to the server."
-        );
+      } catch (error) {
+        console.error("User registration error:", error);
+        setNotice(error.message || "Unable to connect to the server.");
+      }
+      return;
     }
-
-    return;
-}
 
     if (mode === "reset" && !otpSent) {
       try {
-        const response = await fetch(
-            `${baseUrl}/api/v1/auth/forgot-password/request`,
-            {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json"
-                },
-                body: JSON.stringify({
-                    identifier: form.identifier
-                })
-            }
-        );
+        const data = await authApi.requestForgotPassword(form.identifier);
 
-        const data = await response.json();
-
-        if (!response.ok) {
-            setNotice(
-                data.message || "Unable to send OTP."
-            );
-            return;
-        };
-
-         setOtpVerified(false);
-    setResetToken("");
-
-    setForm((current) => ({
-        ...current,
-        otp: "",
-        newPassword: "",
-        confirmPassword: ""
-    }));
-
+        setOtpVerified(false);
+        setResetToken("");
+        setForm((current) => ({
+          ...current,
+          otp: "",
+          newPassword: "",
+          confirmPassword: "",
+        }));
         setOtpSent(true);
-
-        setNotice(
-            data.message ||
-            "If an account matches the provided information, an OTP has been sent."
-        );
-
-    } catch (error) {
-
-        console.error(
-            "Forgot password request error:",
-            error
-        );
-
-        setNotice(
-            "Unable to connect to the server."
-        );
-    }
-
-    return;
-    }
-
-    if (mode === "login") {
-      finishAuth({ role: "user", roleLabel: "JWT Authenticated" });
+        setNotice(data.message || "If an account matches the provided information, an OTP has been sent.");
+      } catch (error) {
+        console.error("Forgot password request error:", error);
+        setNotice(error.message || "Unable to connect to the server.");
+      }
       return;
     }
 
-if (mode === "reset" && otpSent) {
-
-    // STEP 1: OTP verify karo
-    if (!resetToken) {
-        try {
-
-            const response = await fetch(
-                `${baseUrl}/api/v1/auth/forgot-password/verify`,
-                {
-                    method: "POST",
-
-                    headers: {
-                        "Content-Type": "application/json"
-                    },
-
-                    body: JSON.stringify({
-                        identifier: form.identifier,
-                        otp: form.otp
-                    })
-                }
-            );
-
-            const data = await response.json();
-
-            if (!response.ok) {
-                setNotice(
-                    data.message || "Invalid OTP."
-                );
-                return;
-            }
-
-            // OTP successfully verified
-            setResetToken(data.resetToken);
-            setOtpVerified(true)
-
-            setNotice(
-                "OTP verified successfully. Now create your new password."
-            );
-
-        } catch (error) {
-
-            console.error(
-                "OTP verification error:",
-                error
-            );
-
-            setNotice(
-                "Unable to connect to the server."
-            );
-        }
-
-        return;
-    }
-
-
-    // STEP 2: OTP already verified
-    // Now reset the password
-
-    try {
-
-        const response = await fetch(
-            `${baseUrl}/api/v1/auth/forgot-password/reset`,
-            {
-                method: "POST",
-
-                headers: {
-                    "Content-Type": "application/json"
-                },
-
-                body: JSON.stringify({
-                    resetToken: resetToken,
-                    newPassword: form.newPassword,
-                    confirmPassword: form.confirmPassword
-                })
-            }
+    if (mode === "login") {
+      try {
+        const data = await authApi.loginUser(
+          form.identifier,
+          form.password
         );
 
-        const data = await response.json();
+        setNotice(data.message || "Login successful.");
 
-        if (!response.ok) {
-            setNotice(
-                data.message || "Unable to reset password."
-            );
-            return;
-        }
-
-        // Password successfully changed
-        setApprovalPopup({
-            status: "success",
-            message:
-                data.message ||
-                "Your password has been reset successfully."
+        finishAuth({
+          role: data.user?.role || "user",
+          roleLabel: "Session Authenticated",
+          authType: "session"
         });
 
-        // Clear sensitive form data
-        setForm((current) => ({
-            ...current,
-            identifier: "",
-            otp: "",
-            newPassword: "",
-            confirmPassword: ""
-        }));
+      } catch (error) {
+        console.error("Login error:", error);
+        setNotice(error.message || "Invalid credentials.");
+      }
 
-        setResetToken("");
-        setOtpSent(false);
-        setOtpVerified(false)
-
-    } catch (error) {
-
-        console.error(
-            "Password reset error:",
-            error
-        );
-
-        setNotice(
-            "Unable to connect to the server."
-        );
+      return;
     }
 
-    return;
-}    
+    if (mode === "reset" && otpSent) {
+      if (!resetToken) {
+        try {
+          const data = await authApi.verifyForgotPasswordOTP(form.identifier, form.otp);
+
+          setResetToken(data.resetToken);
+          setOtpVerified(true);
+          setNotice(data.message || "OTP verified successfully. Now create your new password.");
+        } catch (error) {
+          console.error("OTP verification error:", error);
+          setNotice(error.message || "Unable to connect to the server.");
+        }
+        return;
+      }
+
+      try {
+        const data = await authApi.resetPassword(resetToken, form.newPassword, form.confirmPassword);
+
+        setApprovalPopup({
+          status: "success",
+          message: data.message || "Your password has been reset successfully.",
+        });
+        setForm((current) => ({
+          ...current,
+          identifier: "",
+          otp: "",
+          newPassword: "",
+          confirmPassword: "",
+        }));
+        setResetToken("");
+        setOtpSent(false);
+        setOtpVerified(false);
+      } catch (error) {
+        console.error("Password reset error:", error);
+        setNotice(error.message || "Unable to connect to the server.");
+      }
+      return;
+    }
   };
   const switchMode = (nextMode) => {
     setMode(nextMode);
@@ -429,28 +288,28 @@ if (mode === "reset" && otpSent) {
               <CheckCircle2 size={34} />
             </div>
             <span>  {approvalPopup.status === "success"
-    ? "Success"
-    : approvalPopup.status === "approved"
-    ? "Approved"
-    : "Admin Request Update"}</span>
+              ? "Success"
+              : approvalPopup.status === "approved"
+                ? "Approved"
+                : "Admin Request Update"}</span>
             <h3 id="approval-popup-title">{approvalPopup.message}</h3>
             <button
-    type="button"
-    className="primary-button"
-    onClick={() => {
-        setApprovalPopup(null);
+              type="button"
+              className="primary-button"
+              onClick={() => {
+                setApprovalPopup(null);
 
-        if (approvalPopup.status === "success") {
-            setMode("login");
-            setRole("user");
-            setNotice("You can now login with your credentials.");
-        }
-    }}
->
-    {approvalPopup.status === "success"
-        ? "Continue to Login"
-        : "Got it"}
-</button>
+                if (approvalPopup.status === "success") {
+                  setMode("login");
+                  setRole("user");
+                  setNotice("You can now login with your credentials.");
+                }
+              }}
+            >
+              {approvalPopup.status === "success"
+                ? "Continue to Login"
+                : "Got it"}
+            </button>
           </div>
         </div>
       )}
@@ -532,70 +391,68 @@ if (mode === "reset" && otpSent) {
             {mode === "reset" && (
               <div className="grid gap-4">
                 <Field icon={AtSign} label="Email or mobile number" value={form.identifier} onChange={updateField("identifier")} placeholder="email@example.com or 9876543210" />
-              {otpSent && (
-    <>
-        {/* OTP field — OTP verification tak visible rahega */}
-        {!otpVerified && (
-            <Field
-                icon={KeyRound}
-                label="OTP"
-                value={form.otp}
-                onChange={updateField("otp")}
-                placeholder="6 digit OTP"
-                inputMode="numeric"
-            />
-        )}
+                {otpSent && (
+                  <>
+                    {!otpVerified && (
+                      <Field
+                        icon={KeyRound}
+                        label="OTP"
+                        value={form.otp}
+                        onChange={updateField("otp")}
+                        placeholder="6 digit OTP"
+                        inputMode="numeric"
+                      />
+                    )}
 
-        {/* Password fields — OTP verify hone ke BAAD visible hongi */}
-        {otpVerified && (
-            <>
-                <PasswordField
-                    label="New password"
-                    value={form.newPassword}
-                    onChange={updateField("newPassword")}
-                    placeholder="Create new password"
-                />
+                    {otpVerified && (
+                      <>
+                        <PasswordField
+                          label="New password"
+                          value={form.newPassword}
+                          onChange={updateField("newPassword")}
+                          placeholder="Create new password"
+                        />
 
-                <PasswordField
-                    label="Confirm new password"
-                    value={form.confirmPassword}
-                    onChange={updateField("confirmPassword")}
-                    placeholder="Confirm new password"
-                />
-            </>
-        )}
-    </>
-)}
+                        <PasswordField
+                          label="Confirm new password"
+                          value={form.confirmPassword}
+                          onChange={updateField("confirmPassword")}
+                          placeholder="Confirm new password"
+                        />
+                      </>
+                    )}
+                  </>
+                )}
               </div>
             )}
 
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <button type="submit" className="primary-button w-full sm:w-auto" disabled={adminApprovalRequested}>
-                {mode === "login" && "Login with JWT"}
+                {mode === "login" && "Login"}
                 {mode === "register" && (role === "admin" ? "Request Admin Approval" : "Create User Account")}
-{mode === "reset" && (
-    !otpSent
-        ? "Get OTP"
-        : !resetToken
-            ? "Verify OTP"
-            : "Update Password"
-)}              </button>
+                {mode === "reset" && (
+                  !otpSent
+                    ? "Get OTP"
+                    : !resetToken
+                      ? "Verify OTP"
+                      : "Update Password"
+                )}              </button>
               {mode === "login" && (
                 <button type="button" className="secondary-button w-full sm:w-auto" onClick={() => switchMode("reset")}>Forgot password</button>
               )}
               {mode === "reset" && otpSent && (
                 <button type="button" className="secondary-button w-full sm:w-auto" onClick={() => {
-    setOtpSent(false);
-    setOtpVerified(false);
-    setResetToken("");
+                  setOtpSent(false);
+                  setOtpVerified(false);
+                  setResetToken("");
 
-    setForm((current) => ({
-        ...current,
-        otp: "",
-        newPassword: "",
-        confirmPassword: ""
-    }));
-}}>Change email/mobile</button>
+                  setForm((current) => ({
+                    ...current,
+                    otp: "",
+                    newPassword: "",
+                    confirmPassword: ""
+                  }));
+                }}>Change email/mobile</button>
               )}
             </div>
           </form>

@@ -6,6 +6,8 @@ import connectDB from "./src/db/index.js";
 import cors from "cors";
 import cookieParser from "cookie-parser";
 import { urlencoded } from "express";
+import session from "express-session";
+import MongoStore from "connect-mongo";
 
 import authRouter from "./src/routes/auth.route.js";
 
@@ -33,7 +35,24 @@ connectDB()
     })
 
 
-    app.use(cors());
+    app.use(cors({
+      origin: "http://localhost:5173",
+      credentials: true
+    }));
+
+    app.use(session({
+      secret:process.env.Session_Secret, 
+      resave:false,
+      saveUninitialized:false,
+      store:MongoStore.create({
+        mongoUrl:process.env.MONGO_URI,
+      }),
+      cookie:{
+        httpOnly:true,
+        secure:false,
+        maxAge:60*1000
+      }
+    }))
 
     app.use(express.json());
     app.use(cookieParser());

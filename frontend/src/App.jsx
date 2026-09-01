@@ -20,6 +20,7 @@ import {
 import AuthWorkspace from "./components/AuthWorkspace";
 import RoadmapTracker from "./components/RoadmapTracker";
 import { endpoints, metrics, modules, roadmap } from "./data/workspace";
+import { authApi } from "./lib/api";
 import "./styles.css";
 
 const navigation = [
@@ -340,10 +341,24 @@ function Dashboard({ currentUser, onLogout }) {
 
 export default function App() {
   const [currentUser, setCurrentUser] = useState(null);
+  const handleLogout = async () => {
+
+    try {
+
+        await authApi.logoutUser();
+
+        setCurrentUser(null);
+
+    } catch (error) {
+
+        console.error("Logout failed:", error);
+
+    }
+};
 
   if (!currentUser) {
     return <PublicHome onAuthenticated={setCurrentUser} />;
   }
 
-  return <Dashboard currentUser={currentUser} onLogout={() => setCurrentUser(null)} />;
+  return <Dashboard currentUser={currentUser} onLogout={() => handleLogout()} />;
 }
