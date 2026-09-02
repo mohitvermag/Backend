@@ -398,35 +398,114 @@ export const resetPassword = async (req, res) => {
 export const loginUser = async (req, res) => {
     try {
         const result = loginUserSchema.safeParse(req.body);
+
         if (!result.success) {
-            return res.status(400).json({ success: false, message: result.error.issues[0].message });
+            return res.status(400).json({
+                success: false,
+                message: result.error.issues[0].message
+            });
         }
 
         const { identifier, password } = result.data;
 
         const normalisedIdentifier = identifier.trim().toLowerCase();
+
         const user = await User.findOne({
-            $or: [{ email: normalisedIdentifier }, { mobile: identifier.trim() }],
+            $or: [
+                { email: normalisedIdentifier },
+                { mobile: identifier.trim() }
+            ]
         });
 
         if (!user) {
-            return res.status(400).json({ success: false, message: "Invalid Credentials" });
+            return res.status(400).json({
+                success: false,
+                message: "Invalid Credentials"
+            });
         }
 
-        const isPasswordCorrect = await bcrypt.compare(password, user.passwordHash);
+        // Check whether account is currently locked
+        if (user.lockUntil && user.lockUntil > new Date()) {
+
+            const remainingSeconds = Math.ceil(
+                (user.lockUntil.getTime() - Date.now()) / 1000
+            );
+
+            return res.status(429).json({
+                success: false,
+                locked: true,
+                remainingSeconds,
+                message: "Too many failed login attempts. Please try again later."
+            });
+        }
+
+        // Check password
+        const isPasswordCorrect = await bcrypt.compare(
+            password,
+            user.passwordHash
+        );
+
+        // Wrong password
         if (!isPasswordCorrect) {
-            return res.status(400).json({ success: false, message: "Invalid Credentials" });
+
+            user.failedLoginAttempts += 1;
+
+            // 3 failed attempts
+            if (user.failedLoginAttempts >= 3) {
+
+                user.lockUntil = new Date(
+                    Date.now() + 60 * 1000
+                );
+
+                await user.save();
+
+                return res.status(429).json({
+                    success: false,
+                    locked: true,
+                    remainingSeconds: 60,
+                    message: "Too many failed login attempts. Please try again after 1 minute."
+                });
+            }
+
+            await user.save();
+
+            return res.status(400).json({
+                success: false,
+                locked: false,
+                attemptsRemaining: 3 - user.failedLoginAttempts,
+                message: "Invalid Credentials"
+            });
         }
 
+        // Correct password
+        user.failedLoginAttempts = 0;
+        user.lockUntil = null;
+
+        await user.save();
+
+        // Create session
         req.session.userId = user._id.toString();
 
         return res.status(200).json({
             success: true,
             message: "Login Successful",
-            user: { id: user._id, username: user.username, email: user.email, mobile: user.mobile, role: user.role },
+            user: {
+                id: user._id,
+                username: user.username,
+                email: user.email,
+                mobile: user.mobile,
+                role: user.role
+            }
         });
+
     } catch (err) {
-        return res.status(500).json({ success: false, message: `${err} Unable to login user` });
+
+        console.error("Login error:", err);
+
+        return res.status(500).json({
+            success: false,
+            message: "Unable to login user"
+        });
     }
 };
 

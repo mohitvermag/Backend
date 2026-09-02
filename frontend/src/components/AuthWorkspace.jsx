@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { io } from "socket.io-client";
 import { AtSign, BadgeCheck, CheckCircle2, Clock3, Eye, EyeOff, KeyRound, Mail, Phone, Send, Shield, UserRound, X } from "lucide-react";
-import { authApi } from "../lib/api";
+import { authApi } from "../lib/api.js";
 
 const modes = [
   { id: "login", label: "Login" },
@@ -68,6 +68,8 @@ export default function AuthWorkspace({ initialMode = "login", onAuthenticated }
   const [adminApprovalRequested, setAdminApprovalRequested] = useState(false);
   const [adminApproveRequestId, setAdminApproveRequestId] = useState(null);
   const [notice, setNotice] = useState("");
+  const [loginLocked, setLoginLocked] = useState(false);
+  const [remainingSeconds, setRemainingSeconds] = useState(0);
   const [approvalPopup, setApprovalPopup] = useState(null);
   const socketRef = useRef(null);
   const [otpVerified, setOtpVerified] = useState(false);
@@ -98,6 +100,25 @@ export default function AuthWorkspace({ initialMode = "login", onAuthenticated }
       socketRef.current = null;
     };
   }, []);
+
+  useEffect(() => {
+    if (!loginLocked || remainingSeconds <= 0) {
+      return;
+    }
+
+    const timer = setInterval(() => {
+      setRemainingSeconds((current) => current - 1);
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [loginLocked, remainingSeconds]);
+
+  useEffect(() => {
+    if (loginLocked && remainingSeconds <= 0) {
+      setLoginLocked(false);
+      setNotice("");
+    }
+  }, [loginLocked, remainingSeconds]);
 
   useEffect(() => {
     if (!adminApproveRequestId || !socketRef.current) return;
@@ -207,13 +228,17 @@ export default function AuthWorkspace({ initialMode = "login", onAuthenticated }
     }
 
     if (mode === "login") {
+      if (loginLocked) return;
+
       try {
         const data = await authApi.loginUser(
           form.identifier,
           form.password
         );
 
-        setNotice(data.message || "Login successful.");
+        setLoginLocked(false);
+        setRemainingSeconds(0);
+        setNotice("");
 
         finishAuth({
           role: data.user?.role || "user",
@@ -223,7 +248,26 @@ export default function AuthWorkspace({ initialMode = "login", onAuthenticated }
 
       } catch (error) {
         console.error("Login error:", error);
-        setNotice(error.message || "Invalid credentials.");
+
+        const response = error.response?.data;
+        console.log("FULL LOGIN ERROR:", error);
+  console.log("ERROR RESPONSE:", error.response);
+  console.log("ERROR DATA:", error.response?.data);
+
+        if (response?.locked) {
+          setLoginLocked(true);
+          setRemainingSeconds(response.remainingSeconds || 60);
+
+          setNotice(
+            "Too many failed login attempts. Please wait before trying again."
+          );
+        } else {
+          setNotice(
+            response?.message ||
+            error.message ||
+            "Invalid username or password"
+          );
+        }
       }
 
       return;
@@ -387,6 +431,20 @@ export default function AuthWorkspace({ initialMode = "login", onAuthenticated }
                 <PasswordField label="Password" value={form.password} onChange={updateField("password")} />
               </div>
             )}
+            {mode === "login" && loginLocked && (
+              <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-center">
+                <p className="font-semibold text-red-700">
+                  Too many failed login attempts
+                </p>
+
+                <p className="mt-1 text-sm text-red-600">
+                  Try again in{" "}
+                  <strong>
+                    00:{String(remainingSeconds).padStart(2, "0")}
+                  </strong>
+                </p>
+              </div>
+            )}
 
             {mode === "reset" && (
               <div className="grid gap-4">
@@ -427,7 +485,10 @@ export default function AuthWorkspace({ initialMode = "login", onAuthenticated }
             )}
 
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <button type="submit" className="primary-button w-full sm:w-auto" disabled={adminApprovalRequested}>
+              <button type="submit" className="primary-button w-full sm:w-auto" disabled={
+                adminApprovalRequested ||
+                (mode === "login" && loginLocked)
+              }>
                 {mode === "login" && "Login"}
                 {mode === "register" && (role === "admin" ? "Request Admin Approval" : "Create User Account")}
                 {mode === "reset" && (
