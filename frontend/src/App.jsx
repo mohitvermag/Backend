@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   Activity,
   Boxes,
@@ -341,20 +341,42 @@ function Dashboard({ currentUser, onLogout }) {
 
 export default function App() {
   const [currentUser, setCurrentUser] = useState(null);
+  const [isCheckingAuth, setIsCheckingAuth] = useState(true);
+
+  // Refresh pe session check karo — agar session hai toh login page pe mat bhejo
+  useEffect(() => {
+    const verifySession = async () => {
+      try {
+        const response = await authApi.checkAuth();
+        if (response.success && response.user) {
+          setCurrentUser(response.user);
+        }
+      } catch (error) {
+        // Session nahi hai — normal hai, login page dikhao
+      } finally {
+        setIsCheckingAuth(false);
+      }
+    };
+    verifySession();
+  }, []);
+
   const handleLogout = async () => {
-
     try {
-
         await authApi.logoutUser();
-
         setCurrentUser(null);
-
     } catch (error) {
-
         console.error("Logout failed:", error);
-
     }
-};
+  };
+
+  // Jab tak session check ho raha hai, kuch mat dikhao
+  if (isCheckingAuth) {
+    return (
+      <div style={{ display: "flex", height: "100vh", alignItems: "center", justifyContent: "center", background: "#f1f5f9" }}>
+        <p style={{ color: "#64748b", fontSize: "16px" }}>Loading...</p>
+      </div>
+    );
+  }
 
   if (!currentUser) {
     return <PublicHome onAuthenticated={setCurrentUser} />;

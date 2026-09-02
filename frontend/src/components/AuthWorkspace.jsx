@@ -383,7 +383,7 @@ export default function AuthWorkspace({ initialMode = "login", onAuthenticated }
 
             {mode === "login" && (
               <div className="grid gap-4">
-                <Field icon={AtSign} label="Email or username" value={form.identifier} onChange={updateField("identifier")} placeholder="email@example.com or username" />
+                <Field icon={AtSign} label="Email or Mobile" value={form.identifier} onChange={updateField("identifier")} placeholder="email@example.com or username" />
                 <PasswordField label="Password" value={form.password} onChange={updateField("password")} />
               </div>
             )}

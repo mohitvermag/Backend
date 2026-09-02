@@ -29,5 +29,6 @@ export const authApi = {
         identifier,
         password
     }),
-    logoutUser: () => apiClient.post("auth/logout")
+    logoutUser: () => apiClient.post("auth/logout"),
+    checkAuth: () => apiClient.get("auth/check"),
 };
