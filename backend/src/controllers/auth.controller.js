@@ -1,114 +1,93 @@
-import bcrypt from "bcrypt";
+﻿import bcrypt from "bcrypt";
 import User from "../models/User.js";
 import AdminRegistrationRequest from "../models/AdminRegistrationRequest.js";
 import PasswordReset from "../models/PasswordReset.js";
-import { approvalToken as generateApprovalToken, generateOTP, approvalTokenHash as  hashApprovalToken, hashOTP, generateResetToken, hashResetToken} from "../utils/crypto.js";
-import {sendAdminApprovalEmail, sendPasswordResetOTP} from "../utils/mail.js";
+import { approvalToken as generateApprovalToken, generateOTP, approvalTokenHash as hashApprovalToken, hashOTP, generateResetToken, hashResetToken } from "../utils/crypto.js";
+import { sendAdminApprovalEmail, sendPasswordResetOTP } from "../utils/mail.js";
 import { sendPasswordResetSMS } from "../utils/sms.js";
-
+import {
+    registerUserSchema,
+    loginUserSchema,
+    requestForgotPasswordSchema,
+    verifyForgotPasswordOTPSchema,
+    resetPasswordSchema,
+} from "../validators/auth.validator.js";
 
 const emitAdminRegistrationStatus = (req, request, status, message) => {
     const io = req.app.get("io");
-    if(!io || !request?._id) return;
+    if (!io || !request?._id) return;
 
     io.to(`admin-request-${request._id.toString()}`).emit("admin-request-status", {
         requestId: request._id,
         status,
-        message
+        message,
     });
-}
+};
 
-export const requestAdminRegistration = async(req,res)=>{
-    try{
-const {username, email, mobile, password, confirmPassword} = req.body;
-if(!username || !email || !mobile || !password || !confirmPassword){
-    return res.status(400).json({
-        success:false,
-        message:"All fields are required",
-    })
-}
-    if(password !== confirmPassword){
-        return res.status(400).json({
-            success:false,
-            message:"Password do not matched"
-        })
+export const requestAdminRegistration = async (req, res) => {
+    try {
+        const result = registerUserSchema.safeParse(req.body);
+        if (!result.success) {
+            return res.status(400).json({ success: false, message: result.error.issues[0].message });
+        }
+
+        const { username, email, mobile, password } = result.data;
+
+        const existingUser = await User.findOne({ $or: [{ username }, { email }, { mobile }] });
+        if (existingUser) {
+            return res.status(400).json({ success: false, message: "User already exists" });
+        }
+
+        const rawapprovalToken = generateApprovalToken();
+        const approvalTokenHash = hashApprovalToken(rawapprovalToken);
+        const passwordHash = await bcrypt.hash(password, 10);
+        const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
+
+        const adminRequest = await AdminRegistrationRequest.create({
+            username, email, mobile, passwordHash, approvalTokenHash, status: "pending", expiresAt,
+        });
+
+        await sendAdminApprovalEmail({ username, email, mobile, approvalToken: rawapprovalToken });
+        return res.status(201).json({
+            success: true,
+            message: "Admin registration request submitted successfully. Please wait for approval.",
+            requestId: adminRequest._id,
+        });
+    } catch (err) {
+        return res.status(500).json({ success: false, message: "Internal server error", error: err.message });
     }
-    const existingUser = await User.findOne({$or:[{username},{email},{mobile}]});
-    if(existingUser){
-        return res.status(400).json({
-            success:false,
-            message:"User already exists"
-        })
-    }
+};
 
-    const rawapprovalToken = generateApprovalToken();
-    const approvalTokenHash = hashApprovalToken(rawapprovalToken);
-    const passwordHash = await bcrypt.hash(password, 10);
-    const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
-
-    const adminRequest = await AdminRegistrationRequest.create({
-        username, email, mobile, passwordHash, approvalTokenHash, status:"pending", expiresAt
-    })
-
-    await sendAdminApprovalEmail({username, email, mobile, approvalToken:rawapprovalToken});
-    return res.status(201).json({
-        success:true,
-        message:"Admin registration request submitted successfully. Please wait for approval.",
-        requestId : adminRequest._id
-    })
-
-    }
-    catch(err){
-        return res.status(500).json({
-            success:false,
-            message:"Internal server error",
-            error:err.message
-        })
-    }
-}
-
-export const approveAdminRegistration = async(req,res)=>{
-    try{
-        const {token:approvalToken} = req.params;
-        if(!approvalToken){
-            return res.status(400).json({
-                success:false,
-                message:"Approval token is required"
-            })
+export const approveAdminRegistration = async (req, res) => {
+    try {
+        const { token: approvalToken } = req.params;
+        if (!approvalToken) {
+            return res.status(400).json({ success: false, message: "Approval token is required" });
         }
         const approvalTokenHash = hashApprovalToken(approvalToken);
-        const request = await AdminRegistrationRequest.findOne({approvalTokenHash, status:"pending"});
-        if(!request){
-            return res.status(400).json({
-                success:false,
-                message:"Invalid or expired approval token"
-            })
+        const request = await AdminRegistrationRequest.findOne({ approvalTokenHash, status: "pending" });
+        if (!request) {
+            return res.status(400).json({ success: false, message: "Invalid or expired approval token" });
         }
-        if(request.expiresAt < new Date()){
-            request.status="expired";
+        if (request.expiresAt < new Date()) {
+            request.status = "expired";
             await request.save();
             emitAdminRegistrationStatus(req, request, "expired", "Admin registration request has expired.");
-            return res.status(400).json({
-                success:false,
-                message:"Approval token has expired"
-            })
+            return res.status(400).json({ success: false, message: "Approval token has expired" });
         }
-        const existingUser = await User.findOne({$or:[{username:request.username},{email:request.email},{mobile:request.mobile}]});
-        if(existingUser){
+        const existingUser = await User.findOne({ $or: [{ username: request.username }, { email: request.email }, { mobile: request.mobile }] });
+        if (existingUser) {
             request.status = "rejected";
             await request.save();
             emitAdminRegistrationStatus(req, request, "rejected", "Admin registration request rejected because user already exists.");
-            return res.status(400).json({
-                success:false,
-                message:"User already exists"
-            })
+            return res.status(400).json({ success: false, message: "User already exists" });
         }
         const user = await User.create({
-            username:request.username,
-            email:request.email,
-            mobile:request.mobile,
-            passwordHash:request.passwordHash,
-            role:"admin"
+            username: request.username,
+            email: request.email,
+            mobile: request.mobile,
+            passwordHash: request.passwordHash,
+            role: "admin",
         });
 
         request.status = "approved";
@@ -143,7 +122,7 @@ export const approveAdminRegistration = async(req,res)=>{
                         font-size: 48px;
                         margin-bottom: 15px;
                     ">
-                        ✓
+                        &#10003;
                     </div>
 
                     <h1 style="color: #16a34a;">
@@ -164,39 +143,27 @@ export const approveAdminRegistration = async(req,res)=>{
 
             </body>
             </html>`);
-    }
-    catch(err){
+    } catch (err) {
         console.error(err);
-        return res.status(500).send(`
-            <h2>Something went wrong while approving the admin request.</h2>
-        `);
+        return res.status(500).send(`<h2>Something went wrong while approving the admin request.</h2>`);
     }
-}
+};
 
-export const rejectAdminRegistration = async(req,res)=>{
-    try{
-        const {token} = req.params;
+export const rejectAdminRegistration = async (req, res) => {
+    try {
+        const { token } = req.params;
         const approvalTokenHash = hashApprovalToken(token);
-        const request = await AdminRegistrationRequest.findOne({
-            approvalTokenHash,
-            status:"pending"
-        });
-        if(!request){
-            return res.status(404).json({
-                success:false,
-                message:"Invalid or Already Processed Request"
-            })
+        const request = await AdminRegistrationRequest.findOne({ approvalTokenHash, status: "pending" });
+        if (!request) {
+            return res.status(404).json({ success: false, message: "Invalid or Already Processed Request" });
         }
-        if(request.expiresAt<new Date()){
+        if (request.expiresAt < new Date()) {
             request.status = "expired";
             await request.save();
             emitAdminRegistrationStatus(req, request, "expired", "Admin registration request has expired.");
-            return res.status(410).json({
-                success:false,
-                message:"Request Expired"
-            })
+            return res.status(410).json({ success: false, message: "Request Expired" });
         }
-        request.status="rejected"
+        request.status = "rejected";
         await request.save();
         emitAdminRegistrationStatus(req, request, "rejected", "Admin registration request rejected.");
 
@@ -226,7 +193,7 @@ export const rejectAdminRegistration = async(req,res)=>{
                 ">
 
                     <div style="font-size: 48px;">
-                        ✕
+                        &#10005;
                     </div>
 
                     <h1 style="color: #dc2626;">
@@ -241,413 +208,261 @@ export const rejectAdminRegistration = async(req,res)=>{
 
             </body>
             </html>
-            `)
+            `);
+    } catch (err) {
+        console.error(err);
+        return res.status(500).send(`<h2>Something went wrong while rejecting the request.</h2>`);
     }
-    catch(err){
-console.error(err);
- return res.status(500).send(`
-            <h2>Something went wrong while rejecting the request.</h2>
-        `);
-    }
-}
+};
 
-export const getAdminRegistrationStatus = async(req, res)=>{
-    try{
-        const {requestId}=req.params;
+export const getAdminRegistrationStatus = async (req, res) => {
+    try {
+        const { requestId } = req.params;
         const request = await AdminRegistrationRequest.findById(requestId);
-        if(!request){
-            return res.status(400).json({
-                success:false,
-                message:"Admin Registration request not found"
-            })
+        if (!request) {
+            return res.status(400).json({ success: false, message: "Admin Registration request not found" });
         }
-        return res.status(200).json({
-            success:true,
-            message:request.status
+        return res.status(200).json({ success: true, message: request.status });
+    } catch (err) {
+        return res.status(500).json({ success: false, message: "Unable to get registration status" });
+    }
+};
+
+export const registerUser = async (req, res) => {
+    try {
+        const result = registerUserSchema.safeParse(req.body);
+        if (!result.success) {
+            return res.status(400).json({ success: false, message: result.error.issues[0].message });
+        }
+
+        const { username, email, mobile, password } = result.data;
+
+        const existingUser = await User.findOne({ $or: [{ username }, { email }, { mobile }] });
+        if (existingUser) {
+            return res.status(409).json({ success: false, message: "Already Resigtered" });
+        }
+        const passwordHash = await bcrypt.hash(password, 10);
+        const user = await User.create({ username, email, mobile, passwordHash, role: "user" });
+
+        return res.status(201).json({
+            success: true,
+            message: "User Created Successfully",
+            user: { id: user._id, username: user.username, email: user.email, mobile: user.mobile, role: user.role },
         });
+    } catch (err) {
+        return res.status(500).json({ success: false, message: "Internal Server Error" });
     }
-    catch(err){
-        return res.status(500).json({
-            success:false,
-            message:"Unable to get registration status"
-        })
-    }
-}
+};
 
-export const registerUser  = async(req, res)=>{
-    try{
-    const {username, email, mobile, password, confirmPassword}= req.body;
-
-    if(!username || !email || !mobile || !password || !confirmPassword){
-        return res.status(400).json({
-            success:false,
-            message:"All fields are required"
-        })
-    }
-    if(password!==confirmPassword){
-        return res.status(400).json({
-            success:false,
-            message:"Password doesn't match"
-        })
-    }
-    const existingUser = await User.findOne({
-        $or :[{username}, {email},{mobile}]
-    })
-    if(existingUser){
-        return res.status(409).json({
-            success:false,
-            message:"Already Resigtered"
-        })
-    }
-    const passwordHash = await bcrypt.hash(password,10);
-    const user = await User.create({
-        username,
-        email,
-        mobile,
-        passwordHash,
-        role:"user"
-    })
-
-    return res.status(201).json({
-        success:true,
-        message:"User Created Successfully",
-        user:{
-            id:user._id,
-            username:user.username,
-            email:user.email,
-            mobile:user.mobile,
-            role:user.role
+export const requestForgotPassword = async (req, res) => {
+    try {
+        const result = requestForgotPasswordSchema.safeParse(req.body);
+        if (!result.success) {
+            return res.status(400).json({ success: false, message: result.error.issues[0].message });
         }
-    })
-}
-catch(err){
-    return res.status(500).json({
-        success:false,
-        message:"Internal Server Error"
-    })
-}
-}
 
-export const requestForgotPassword  = async(req, res)=>{
-    try{
-        const {identifier} = req.body;
-        if(!identifier){
-            return res.status(400).json({
-                success:true,
-                message:"Email or Mobile number is Required"
-            })
-        };
-
-        const normalisedIdentifier = identifier.trim().toLowerCase();
+        const normalisedIdentifier = result.data.identifier.trim().toLowerCase();
 
         const isEmail = normalisedIdentifier.includes("@");
-        const isMobile = /^\d{10}$/.test(
-    normalisedIdentifier
-        );
+        const isMobile = /^\d{10}$/.test(normalisedIdentifier);
         if (!isEmail && !isMobile) {
-        return res.status(400).json({
-        success: false,
-        message:
-            "Please enter a valid email address or 10-digit mobile number"
-        });
+            return res.status(400).json({ success: false, message: "Please enter a valid email address or 10-digit mobile number" });
         }
-        // const query = isEmail?{email:normalisedIdentifier}:{mobile:normalisedIdentifier};
+
         let query;
         if (isEmail) {
-    query = {
-        email: normalisedIdentifier
-    };
-} else {
-    query = {
-        mobile: normalisedIdentifier
-    };
-}
+            query = { email: normalisedIdentifier };
+        } else {
+            query = { mobile: normalisedIdentifier };
+        }
 
         const user = await User.findOne(query);
 
-        if(!user){
-            return res.status(200).json({
-                success:true,
-                message:"If an account matches the provided information, an OTP has been sent!!"
-            })
-        };
+        if (!user) {
+            return res.status(200).json({ success: true, message: "If an account matches the provided information, an OTP has been sent!!" });
+        }
 
         const otp = generateOTP();
         const otpHash = hashOTP(otp);
-        const otpExpiresAt = new Date(Date.now()+5*60*1000);
-        await PasswordReset.deleteMany({
-            userId:user._id
-        });
+        const otpExpiresAt = new Date(Date.now() + 5 * 60 * 1000);
+        await PasswordReset.deleteMany({ userId: user._id });
 
         await PasswordReset.create({
-            userId :user._id,
-            identifier:normalisedIdentifier,
-            deliveryMethod:isEmail?"email":"mobile",
+            userId: user._id,
+            identifier: normalisedIdentifier,
+            deliveryMethod: isEmail ? "email" : "mobile",
             otpHash,
             otpExpiresAt,
-            otpAttempts :0,
-            verified:false
+            otpAttempts: 0,
+            verified: false,
         });
 
-        if(isEmail){
-            await sendPasswordResetOTP({
-                email:user.email,
-                otp
-            })
+        if (isEmail) {
+            await sendPasswordResetOTP({ email: user.email, otp });
+        } else if (isMobile) {
+            await sendPasswordResetSMS({ mobile: user.mobile, otp });
         }
-        else if (isMobile) {
-
-    await sendPasswordResetSMS({
-        mobile: user.mobile,
-        otp
-    });
-}
-        return res.status(200).json({
-                success:true,
-                message:"If an account matches the provided information, an OTP has been sent!!"
-            })
-    }
-    catch(err){
+        return res.status(200).json({ success: true, message: "If an account matches the provided information, an OTP has been sent!!" });
+    } catch (err) {
         console.error("Forgot Password request error", err);
-        return res.status(500).json({
-            success:false,
-            message:"Unable to process Password reset request"
-        })
+        return res.status(500).json({ success: false, message: "Unable to process Password reset request" });
     }
-}
+};
 
-export const verifyForgotPasswordOTP  = async(req, res)=>{
-    try{
-        const {identifier, otp}=req.body;
-        if(!identifier || !otp){
-            return res.status(400).json({
-                success:false,
-                message:"Identifier and OTP are required"
-            })
+export const verifyForgotPasswordOTP = async (req, res) => {
+    try {
+        const result = verifyForgotPasswordOTPSchema.safeParse(req.body);
+        if (!result.success) {
+            return res.status(400).json({ success: false, message: result.error.issues[0].message });
         }
 
+        const { identifier, otp } = result.data;
         const normaliseIdentifier = identifier.trim().toLowerCase();
 
-        const resetRequest = await PasswordReset.findOne({
-            identifier:normaliseIdentifier,
-            verified:false
-        })
+        const resetRequest = await PasswordReset.findOne({ identifier: normaliseIdentifier, verified: false });
 
-        if(!resetRequest){
-            return res.status(400).json({
-                success:false,
-                message:"Invalid or expired Password reset request"
-            })
+        if (!resetRequest) {
+            return res.status(400).json({ success: false, message: "Invalid or expired Password reset request" });
         }
 
-        if(resetRequest.otpExpiresAt<new Date()){
-            await PasswordReset.deleteOne({
-                _id:resetRequest._id
-            });
-
-            return res.status(400).json({
-                success:false,
-                message:"OTP has expired. Please request for new OTP"
-            })
+        if (resetRequest.otpExpiresAt < new Date()) {
+            await PasswordReset.deleteOne({ _id: resetRequest._id });
+            return res.status(400).json({ success: false, message: "OTP has expired. Please request for new OTP" });
         }
 
-        if(resetRequest.otpAttempts>=3){
-            await PasswordReset.deleteOne({
-                _id:resetRequest._id
-            })
-            return res.status(429).json({
-                success:false,
-                message:"Too Many Failed attempts. Please request a new OTP"
-            })
-        };
+        if (resetRequest.otpAttempts >= 3) {
+            await PasswordReset.deleteOne({ _id: resetRequest._id });
+            return res.status(429).json({ success: false, message: "Too Many Failed attempts. Please request a new OTP" });
+        }
 
         const enteredOTPhash = hashOTP(otp);
-        if(enteredOTPhash !== resetRequest.otpHash){
-            resetRequest.otpAttempts +=1;
+        if (enteredOTPhash !== resetRequest.otpHash) {
+            resetRequest.otpAttempts += 1;
             await resetRequest.save();
-
-            return res.status(400).json({
-                success:false,
-                message:"Invalid OTP"
-            })
+            return res.status(400).json({ success: false, message: "Invalid OTP" });
         }
 
         const resetToken = generateResetToken();
         const resetTokenHash = hashResetToken(resetToken);
         resetRequest.verified = true;
         resetRequest.resetTokenHash = resetTokenHash;
-        resetRequest.resetTokenExpiresAt=new Date(Date.now()+15*60*1000)
+        resetRequest.resetTokenExpiresAt = new Date(Date.now() + 15 * 60 * 1000);
         await resetRequest.save();
-        return res.status(200).json({
-            success:true,
-            message:"OTP Verified Successfully",
-            resetToken
-        })
+        return res.status(200).json({ success: true, message: "OTP Verified Successfully", resetToken });
+    } catch (err) {
+        console.error("Verify forgot password OTP error:", err);
+        return res.status(500).json({ success: false, message: "Unable to verify OTP" });
     }
-    catch(err){
-         console.error(
-            "Verify forgot password OTP error:",
-            err
-        );
+};
 
-        return res.status(500).json({
-            success: false,
-            message: "Unable to verify OTP"
-        });
-    }
-}
-
-export const resetPassword = async(req,res)=>{
-    try{
-        const {resetToken, newPassword, confirmPassword}= req.body;
-        if(!resetToken || !newPassword || !confirmPassword){
-            return res.status(400).json({
-                success:false,
-                message:"Reset Token and Password fields are required"
-            }
-        )
+export const resetPassword = async (req, res) => {
+    try {
+        const result = resetPasswordSchema.safeParse(req.body);
+        if (!result.success) {
+            return res.status(400).json({ success: false, message: result.error.issues[0].message });
         }
-        if(confirmPassword !== newPassword){
-            return res.status(400).json({
-                success:false,
-                message:"Passwords do not match"
-            })
+
+        const { resetToken, newPassword, confirmPassword } = result.data;
+
+        if (confirmPassword !== newPassword) {
+            return res.status(400).json({ success: false, message: "Passwords do not match" });
         }
         const resetTokenHash = hashResetToken(resetToken);
-        const resetRequest = await PasswordReset.findOne({
-            resetTokenHash,
-            verified:true
-        });
+        const resetRequest = await PasswordReset.findOne({ resetTokenHash, verified: true });
 
-        if(!resetRequest){
-            return res.status(400).json({
-                success:false,
-                message:"Invalid of expired reset token"
-            })
+        if (!resetRequest) {
+            return res.status(400).json({ success: false, message: "Invalid of expired reset token" });
         }
 
-        if(!resetRequest.resetTokenExpiresAt || resetRequest.resetTokenExpiresAt<new Date()){
-            await PasswordReset.deleteOne({
-                _id:resetRequest._id
-            });
-
-            return res.status(400).json({
-                success:false,
-                message:"Reset Token has expired please try again"
-            })
-        };
-
-        const user = await User.findById(
-            resetRequest.userId
-        );
-
-        if(!user){
-            return res.status(400).json({
-                success:false,
-                message:"User not found"
-            })
+        if (!resetRequest.resetTokenExpiresAt || resetRequest.resetTokenExpiresAt < new Date()) {
+            await PasswordReset.deleteOne({ _id: resetRequest._id });
+            return res.status(400).json({ success: false, message: "Reset Token has expired please try again" });
         }
-        const passwordHash = await bcrypt.hash(newPassword,10);
+
+        const user = await User.findById(resetRequest.userId);
+
+        if (!user) {
+            return res.status(400).json({ success: false, message: "User not found" });
+        }
+        const passwordHash = await bcrypt.hash(newPassword, 10);
         user.passwordHash = passwordHash;
         await user.save();
-        await PasswordReset.deleteOne({
-            _id:resetRequest._id
-        });
+        await PasswordReset.deleteOne({ _id: resetRequest._id });
 
-        return res.status(200).json({
-            success:true,
-            message:"Passwords Changes Successfully. Now You can Log In"
-        })
-
+        return res.status(200).json({ success: true, message: "Passwords Changes Successfully. Now You can Log In" });
+    } catch (err) {
+        return res.status(400).json({ success: false, message: "Unable to change password" });
     }
-    catch(err){
-return res.status(400).json({
-success:false,
-message:"Unable to change password"
-})    
-}
-}
+};
 
-export const loginUser = async(req,res)=>{
-    try{
-        const {identifier, password}=req.body;
-
-        if(!identifier || !password){
-            return res.status(400).json({
-                success:false,
-                message:"Identifier and Password are required"
-            })
+export const loginUser = async (req, res) => {
+    try {
+        const result = loginUserSchema.safeParse(req.body);
+        if (!result.success) {
+            return res.status(400).json({ success: false, message: result.error.issues[0].message });
         }
+
+        const { identifier, password } = result.data;
 
         const normalisedIdentifier = identifier.trim().toLowerCase();
         const user = await User.findOne({
-            $or:[
-                {email:normalisedIdentifier},
-                {mobile:identifier.trim()}
-            ]
+            $or: [{ email: normalisedIdentifier }, { mobile: identifier.trim() }],
         });
 
-        if(!user){
-            return res.status(400).json({
-                success:false,
-                message:"Invalid Credentials"
-            })
-        };
+        if (!user) {
+            return res.status(400).json({ success: false, message: "Invalid Credentials" });
+        }
 
         const isPasswordCorrect = await bcrypt.compare(password, user.passwordHash);
-        if(!isPasswordCorrect){
-            return res.status(400).json({
-                success:false,
-                message:"Invalid Credentials"
-            })
-        };
+        if (!isPasswordCorrect) {
+            return res.status(400).json({ success: false, message: "Invalid Credentials" });
+        }
 
         req.session.userId = user._id.toString();
 
         return res.status(200).json({
-            success:true,
-            message:"Login Successful",
-            user:{
-                id:user._id,
-                username:user.username,
-                email:user.email,
-                mobile:user.mobile,
-                role:user.role
-            }
-        })
+            success: true,
+            message: "Login Successful",
+            user: { id: user._id, username: user.username, email: user.email, mobile: user.mobile, role: user.role },
+        });
+    } catch (err) {
+        return res.status(500).json({ success: false, message: `${err} Unable to login user` });
     }
-    catch(err){
-        return res.status(500).json({
-            success:false,
-            message:`${err} Unable to login user`
-    })
-    }
-}
+};
 
-export const logoutUser = async(req, res)=>{
-    try{
-        req.session.destroy((err)=>{
-            if(err){
+export const logoutUser = async (req, res) => {
+    try {
+        req.session.destroy((err) => {
+            if (err) {
                 console.log(err);
-                return res.status(500).json({
-                    success:false,
-                    message:"Unable to logout User"
-                })
+                return res.status(500).json({ success: false, message: "Unable to logout User" });
             }
             res.clearCookie("connect.sid");
-            return res.status(200).json({
-                success:true,
-                message:"Logout Successful"
-            })
+            return res.status(200).json({ success: true, message: "Logout Successful" });
         });
-
-    }
-    catch(err){
+    } catch (err) {
         console.error("Logout error:", err);
-        return res.status(500).json({
-            success: false,
-            message: "Internal Server Error during logout"
-        });
+        return res.status(500).json({ success: false, message: "Internal Server Error during logout" });
     }
-}
+};
 
+export const checkAuth = async (req, res) => {
+    try {
+        if (!req.session.userId) {
+            return res.status(401).json({ success: false, message: "Not authenticated" });
+        }
+
+        const user = await User.findById(req.session.userId).select("-passwordHash");
+
+        if (!user) {
+            return res.status(401).json({ success: false, message: "User not found" });
+        }
+
+        return res.status(200).json({
+            success: true,
+            user: { id: user._id, username: user.username, email: user.email, mobile: user.mobile, role: user.role },
+        });
+    } catch (err) {
+        return res.status(500).json({ success: false, message: "Internal Server Error" });
+    }
+};
